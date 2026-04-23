@@ -1,0 +1,3252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STUD OS - MONOLITH BUILD</title>
+<style>
+    /* =========================================================
+       01. CORE SYSTEM VARIABLES & MATHEMATICS
+       ========================================================= */
+    :root {
+        /* The Golden Ratio */
+        --phi: 1.61803398875;
+        --phi-inv: 0.61803398875;
+        
+        /* Organic Theme - Light Mode */
+        --bg-color: #e8ecd7;
+        --text-color: #2c4c3b;
+        --window-bg: rgba(219, 226, 198, 0.75);
+        --border-color: #4a7c59;
+        --accent-color: #8b9a46;
+        
+        /* System Colors */
+        --error-color: #d9534f;
+        --success-color: #5cb85c;
+        --warning-color: #f0ad4e;
+        --locked-opacity: 0.4;
+        
+        /* Typography Scaled by Phi */
+        --font-mono: 'Courier New', ui-monospace, SFMono-Regular, monospace;
+        --text-xs: 10px;
+        --text-sm: calc(10px * var(--phi));
+        --text-base: 14px;
+        --text-lg: calc(14px * var(--phi));
+        --text-xl: calc(14px * var(--phi) * var(--phi));
+        
+        /* Z-Index Layers */
+        --z-bg: 1;
+        --z-desktop: 5;
+        --z-window-base: 100;
+        --z-taskbar: 9000;
+        --z-toast: 9500;
+        --z-cursor: 99999;
+        --z-boot: 100000;
+        
+        /* Physics & Transitions */
+        --shadow-solid: 6px 6px 0px var(--border-color);
+        --shadow-hover: 10px 10px 0px var(--border-color);
+        --shadow-inset: inset 4px 4px 0px rgba(0,0,0,0.05);
+        --transition-spring: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        --transition-smooth: 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        --transition-fast: 0.15s ease-out;
+    }
+
+    /* Organic Theme - Dark Mode Override */
+    body.dark-mode {
+        --bg-color: #121815;
+        --text-color: #dbe2c6;
+        --window-bg: rgba(26, 36, 33, 0.75);
+        --border-color: #8b9a46;
+        --accent-color: #e8ecd7;
+        --shadow-solid: 6px 6px 0px var(--border-color);
+        --shadow-inset: inset 4px 4px 0px rgba(255,255,255,0.05);
+    }
+
+    /* =========================================================
+       02. GLOBAL RESETS & SCROLLBARS
+       ========================================================= */
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: var(--font-mono);
+        font-weight: 700;
+        user-select: none;
+        outline: none;
+        cursor: none !important; /* System-wide custom cursor */
+    }
+
+    body {
+        background: var(--bg-color);
+        color: var(--text-color);
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+        transition: background var(--transition-smooth), color var(--transition-smooth);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+    }
+
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.05);
+        border-left: 1px solid var(--border-color);
+    }
+    ::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border: 2px solid var(--window-bg);
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--text-color);
+    }
+
+    /* =========================================================
+       03. BACKGROUND ENGINES (CANVAS, CRT, XP)
+       ========================================================= */
+    #mycelium-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: var(--z-bg);
+        opacity: 0.8;
+        pointer-events: none;
+    }
+
+    .crt-scanline {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%);
+        background-size: 100% 4px;
+        pointer-events: none;
+        z-index: calc(var(--z-cursor) - 1);
+    }
+
+    #sys-xp-bar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 6px;
+        z-index: var(--z-taskbar);
+        background: transparent;
+    }
+
+    #sys-xp-fill {
+        height: 100%;
+        background: var(--accent-color);
+        width: 0%;
+        transition: width 0.5s cubic-bezier(0.1, 0.9, 0.2, 1), background var(--transition-smooth);
+        box-shadow: 0 0 15px var(--accent-color);
+    }
+
+    /* =========================================================
+       04. HARDWARE-ACCELERATED PHYSICS CURSOR
+       ========================================================= */
+    #cursor-dot {
+        position: fixed;
+        width: 6px;
+        height: 6px;
+        background: var(--accent-color);
+        border-radius: 50%;
+        z-index: var(--z-cursor);
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 10px var(--accent-color);
+        transition: background 0.2s;
+    }
+
+    #cursor-ring {
+        position: fixed;
+        width: calc(6px * var(--phi) * var(--phi) * var(--phi));
+        height: calc(6px * var(--phi) * var(--phi) * var(--phi));
+        border: 2px solid var(--border-color);
+        border-radius: 50%;
+        z-index: calc(var(--z-cursor) - 1);
+        pointer-events: none;
+        transform: translate(-50%, -50%);
+        transition: width 0.2s, height 0.2s, background 0.2s, border-color 0.2s;
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
+    }
+
+    body.cursor-hover #cursor-ring {
+        width: calc(6px * var(--phi) * var(--phi) * var(--phi) * var(--phi));
+        height: calc(6px * var(--phi) * var(--phi) * var(--phi) * var(--phi));
+        background: rgba(139, 154, 70, 0.15);
+        border-color: var(--accent-color);
+    }
+
+    body.cursor-text #cursor-ring {
+        width: 4px;
+        height: 24px;
+        border-radius: 2px;
+        background: var(--accent-color);
+        border: none;
+    }
+
+    /* =========================================================
+       05. BOOT SEQUENCE
+       ========================================================= */
+    #boot-screen {
+        position: fixed;
+        inset: 0;
+        background: var(--bg-color);
+        color: var(--text-color);
+        z-index: var(--z-boot);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 10%;
+        transition: opacity 0.8s ease, visibility 0.8s ease;
+    }
+
+    .boot-header {
+        text-align: center;
+        margin-bottom: calc(20px * var(--phi));
+    }
+
+    .boot-title {
+        font-size: var(--text-xl);
+        letter-spacing: 4px;
+        text-shadow: 0 0 15px var(--border-color);
+    }
+
+    .boot-subtitle {
+        font-size: var(--text-lg);
+        opacity: 0.7;
+        margin-top: calc(5px * var(--phi));
+    }
+
+    .boot-bar-container {
+        width: 100%;
+        max-width: 600px;
+        height: calc(10px * var(--phi));
+        border: 2px solid var(--border-color);
+        padding: 2px;
+        margin-top: calc(20px * var(--phi));
+        display: none;
+    }
+
+    .boot-bar-fill {
+        height: 100%;
+        background: var(--text-color);
+        width: 0%;
+        transition: width 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    #boot-terminal-log {
+        margin-top: calc(15px * var(--phi));
+        font-size: var(--text-base);
+        height: 120px;
+        width: 100%;
+        max-width: 600px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        line-height: 1.5;
+        opacity: 0.8;
+    }
+
+    /* =========================================================
+       06. DESKTOP & ICONS
+       ========================================================= */
+    #desktop-environment {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: calc(100vh - 60px);
+        z-index: var(--z-desktop);
+        display: flex;
+        flex-direction: column;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        padding: calc(20px * var(--phi));
+        gap: calc(15px * var(--phi));
+    }
+
+    .desktop-icon {
+        width: 90px;
+        height: 90px;
+        background: var(--window-bg);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 2px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        border-radius: 14px;
+        font-size: 0.75rem;
+        transition: transform var(--transition-spring), box-shadow var(--transition-spring), background var(--transition-smooth), color var(--transition-smooth);
+        box-shadow: var(--shadow-solid);
+        position: relative;
+    }
+
+    .desktop-icon:hover {
+        background: var(--text-color);
+        color: var(--bg-color);
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .desktop-icon:active {
+        transform: translate(2px, 2px);
+        box-shadow: 2px 2px 0 var(--border-color);
+    }
+
+    .desktop-icon svg {
+        width: 32px;
+        height: 32px;
+        stroke: currentColor;
+        stroke-width: 2.2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .desktop-icon.locked {
+        opacity: var(--locked-opacity);
+        border-style: dashed;
+        pointer-events: none;
+        box-shadow: none;
+    }
+
+    /* =========================================================
+       07. WINDOW MANAGER (DWM)
+       ========================================================= */
+    .os-window {
+        position: absolute;
+        background: var(--window-bg);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        border: 2px solid var(--border-color);
+        box-shadow: 15px 15px 0 rgba(0,0,0,0.15);
+        z-index: var(--z-window-base);
+        display: none;
+        flex-direction: column;
+        border-radius: 18px;
+        overflow: hidden;
+        min-width: 300px;
+        max-width: 95vw;
+        max-height: 85vh;
+        transition: background var(--transition-smooth), border-color var(--transition-smooth);
+    }
+
+    .os-window.open {
+        display: flex;
+        animation: windowSpawn var(--transition-spring) forwards;
+    }
+
+    .os-window.minimized {
+        animation: windowDespawn var(--transition-fast) forwards;
+    }
+
+    @keyframes windowSpawn {
+        from { opacity: 0; transform: scale(0.9) translateY(20px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    @keyframes windowDespawn {
+        from { opacity: 1; transform: scale(1) translateY(0); }
+        to { opacity: 0; transform: scale(0.9) translateY(20px); display: none; }
+    }
+
+    .window-titlebar {
+        background: var(--text-color);
+        color: var(--bg-color);
+        padding: 14px 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 1rem;
+        letter-spacing: 1px;
+        transition: background var(--transition-smooth), color var(--transition-smooth);
+    }
+
+    .window-controls {
+        display: flex;
+        gap: 8px;
+    }
+
+    .window-btn {
+        background: transparent;
+        color: var(--bg-color);
+        border: 2px solid var(--bg-color);
+        border-radius: 50%;
+        width: 26px;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8rem;
+        transition: background 0.2s, border-color 0.2s, transform 0.1s;
+    }
+
+    .window-btn:hover {
+        transform: scale(1.1);
+    }
+
+    .window-btn.close:hover {
+        background: var(--error-color);
+        border-color: var(--error-color);
+        color: #fff;
+    }
+
+    .window-btn.min:hover {
+        background: var(--warning-color);
+        border-color: var(--warning-color);
+        color: #000;
+    }
+
+    .window-content {
+        padding: calc(15px * var(--phi));
+        overflow-y: auto;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: calc(10px * var(--phi));
+    }
+
+    /* =========================================================
+       08. INTERNAL UI COMPONENTS
+       ========================================================= */
+    .os-btn {
+        background: var(--window-bg);
+        color: var(--text-color);
+        border: 2px solid var(--border-color);
+        padding: 12px 24px;
+        text-transform: uppercase;
+        border-radius: 10px;
+        transition: transform var(--transition-spring), box-shadow var(--transition-spring), background var(--transition-smooth);
+        box-shadow: 4px 4px 0 var(--border-color);
+        font-size: 0.9rem;
+        letter-spacing: 1px;
+    }
+
+    .os-btn:hover {
+        background: var(--text-color);
+        color: var(--bg-color);
+        transform: translateY(-3px);
+        box-shadow: 7px 7px 0 var(--border-color);
+    }
+
+    .os-btn:active {
+        transform: translate(2px, 2px);
+        box-shadow: 0 0 0 var(--border-color);
+    }
+
+    .os-input, .os-textarea {
+        width: 100%;
+        background: rgba(255,255,255,0.15);
+        border: 2px solid var(--border-color);
+        color: var(--text-color);
+        padding: 14px;
+        border-radius: 10px;
+        font-size: 1rem;
+        transition: border-color 0.2s, background 0.2s, color 0.2s;
+    }
+
+    .os-input:focus, .os-textarea:focus {
+        background: rgba(255,255,255,0.25);
+        border-color: var(--accent-color);
+    }
+
+    .os-textarea {
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: calc(10px * var(--phi));
+    }
+    
+    .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: calc(8px * var(--phi));
+    }
+
+    .status-box {
+        border: 2px solid var(--border-color);
+        padding: 24px;
+        text-align: center;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.05);
+        box-shadow: var(--shadow-inset);
+        transition: background 0.3s, border-color 0.3s;
+    }
+
+    /* Checkbox styling for Quests */
+    .task-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: rgba(255,255,255,0.1);
+        border: 2px solid var(--border-color);
+        padding: 12px;
+        border-radius: 10px;
+        transition: opacity 0.3s;
+    }
+
+    .task-item.completed {
+        opacity: 0.5;
+        text-decoration: line-through;
+    }
+
+    /* Animation Classes */
+    .shake-err { animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
+    @keyframes shake {
+        10%, 90% { transform: translate3d(-2px, 0, 0); }
+        20%, 80% { transform: translate3d(4px, 0, 0); }
+        30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
+        40%, 60% { transform: translate3d(8px, 0, 0); }
+    }
+
+    /* =========================================================
+       09. TERMINAL & APP SPECIFIC CSS
+       ========================================================= */
+    .terminal-container {
+        background: var(--text-color);
+        color: var(--bg-color);
+        border-radius: 12px;
+        padding: 15px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        font-size: 0.9rem;
+        box-shadow: var(--shadow-inset);
+        transition: background var(--transition-smooth), color var(--transition-smooth);
+    }
+
+    .terminal-output {
+        flex: 1;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        word-wrap: break-word;
+    }
+
+    .terminal-input-line {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        border-top: 1px dashed var(--bg-color);
+        padding-top: 10px;
+        align-items: center;
+    }
+
+    .terminal-input-field {
+        background: transparent !important;
+        border: none !important;
+        color: inherit !important;
+        padding: 0 !important;
+        width: 100%;
+        box-shadow: none !important;
+    }
+
+    /* Bug Fixer Minigame */
+    .bug-node {
+        height: 70px;
+        border: 2px solid var(--border-color);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255,255,255,0.1);
+        transition: background 0.1s, transform 0.1s;
+    }
+    
+    .bug-node.corrupt { background: var(--error-color); color: #fff; }
+    .bug-node.golden { background: var(--warning-color); color: #000; animation: pulse 0.5s infinite alternate; }
+    
+    @keyframes pulse {
+        from { transform: scale(1); box-shadow: 0 0 5px var(--warning-color); }
+        to { transform: scale(1.05); box-shadow: 0 0 20px var(--warning-color); }
+    }
+
+    /* =========================================================
+       10. TASKBAR, HUD & NOTIFICATIONS
+       ========================================================= */
+    #taskbar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 60px;
+        z-index: var(--z-taskbar);
+        background: var(--window-bg);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-top: 2px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 calc(20px * var(--phi));
+        transition: background var(--transition-smooth), border-color var(--transition-smooth);
+    }
+
+    .taskbar-group {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+    }
+
+    .hud-element {
+        font-size: 1.1rem;
+        letter-spacing: 1px;
+    }
+
+    .hud-xp-box {
+        background: var(--text-color);
+        color: var(--bg-color);
+        padding: 6px 20px;
+        border-radius: 10px;
+        border: 2px solid var(--border-color);
+        transition: transform 0.2s, background var(--transition-smooth), color var(--transition-smooth);
+    }
+
+    .hud-xp-box.pop {
+        transform: scale(1.1);
+        background: var(--accent-color);
+        color: #fff;
+    }
+
+    .toast-container {
+        position: fixed;
+        top: 70px;
+        left: 30px;
+        z-index: var(--z-toast);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        pointer-events: none;
+    }
+
+    .os-toast {
+        background: var(--text-color);
+        color: var(--bg-color);
+        padding: 14px 24px;
+        border-radius: 12px;
+        box-shadow: var(--shadow-solid);
+        transform: translateX(-150%);
+        transition: transform var(--transition-spring), background var(--transition-smooth);
+        text-transform: uppercase;
+        font-size: 0.9rem;
+        border: 2px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .os-toast.show {
+        transform: translateX(0);
+    }
+
+    /* =========================================================
+       11. VIRTUAL PET / AI BOT (OPTIONAL COMPONENT)
+       ========================================================= */
+    #system-bot {
+        position: absolute;
+        bottom: 80px;
+        right: 40px;
+        z-index: calc(var(--z-taskbar) - 1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .bot-speech-bubble {
+        position: absolute;
+        top: -50px;
+        background: var(--text-color);
+        color: var(--bg-color);
+        padding: 10px 15px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 0.3s, transform 0.3s;
+        white-space: nowrap;
+        box-shadow: var(--shadow-solid);
+        pointer-events: none;
+    }
+
+    .bot-speech-bubble.active {
+        opacity: 1;
+        transform: translateY(0);
+    }
+</style>
+</head>
+<body>
+
+<div id="cursor-dot"></div>
+<div id="cursor-ring"></div>
+<canvas id="mycelium-canvas"></canvas>
+<div class="crt-scanline"></div>
+
+<div id="sys-xp-bar"><div id="sys-xp-fill"></div></div>
+<div class="toast-container" id="sys-notifications"></div>
+
+<div id="boot-screen">
+    <div class="boot-header">
+        <div class="boot-title">STUD_OS // MONOLITH</div>
+        <div class="boot-subtitle">KERNEL ARCHITECTURE V4.0</div>
+    </div>
+    
+    <button class="os-btn interactable" id="btn-init-kernel" style="margin-top: 40px;">MOUNT DRIVE & BOOT</button>
+    
+    <div class="boot-bar-container" id="boot-progress-wrap">
+        <div class="boot-bar-fill" id="boot-progress-fill"></div>
+    </div>
+    <div id="boot-terminal-log"></div>
+</div>
+
+<div id="desktop-environment">
+    <div class="desktop-icon interactable" data-launch="app-terminal">
+        <svg viewBox="0 0 24 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        <span>V-SHELL</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-quests">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+        <span>SYS_TASKS</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-vfs">
+        <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span>SYS_FILES</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-heist">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>FOCUS_HEIST</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-market">
+        <svg viewBox="0 0 24 24"><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        <span>MARKET.EXE</span>
+    </div>
+
+    <div class="desktop-icon interactable locked" id="icon-bugfixer" data-launch="app-bugfixer">
+        <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <span>FIXER</span>
+    </div>
+    <div class="desktop-icon interactable locked" id="icon-flexcss" data-launch="app-flexcss">
+        <svg viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/></svg>
+        <span>FLEX_CSS</span>
+    </div>
+    <div class="desktop-icon interactable locked" id="icon-typer" data-launch="app-typer">
+        <svg viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+        <span>KEY_MASH</span>
+    </div>
+</div>
+
+<div id="system-bot" class="interactable window-drag-handle">
+    <div class="bot-speech-bubble" id="bot-bubble">AWAITING INPUT...</div>
+    <svg viewBox="0 0 100 100" style="width:75px; height:75px; filter:drop-shadow(6px 6px 0 var(--border-color));">
+        <rect x="20" y="25" width="60" height="60" rx="18" fill="var(--window-bg)" stroke="var(--border-color)" stroke-width="4"/>
+        <circle cx="50" cy="50" r="16" fill="var(--bg-color)" stroke="var(--border-color)" stroke-width="4"/>
+        <circle cx="50" cy="50" r="6" fill="var(--text-color)"/>
+        <path d="M 40 75 Q 50 82 60 75" fill="none" stroke="var(--border-color)" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+</div>
+
+<div id="taskbar">
+    <div class="taskbar-group">
+        <button class="os-btn interactable" id="btn-theme-toggle">SYS.THEME</button>
+    </div>
+    
+    <div class="taskbar-group">
+        <div class="hud-element" id="hud-level" style="color: var(--accent-color);">LVL 01</div>
+        <div class="hud-element hud-xp-box" id="hud-xp">XP: 0000</div>
+        <div class="hud-element" id="hud-clock" style="font-size: 1.25rem;">00:00</div>
+    </div>
+</div>
+
+<div id="os-window-layer">
+    <div class="os-window" id="app-terminal">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>V-SHELL // ROOT</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-terminal">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 0; background: var(--text-color);">
+            <div class="terminal-container">
+                <div class="terminal-output" id="term-out">
+                    <div style="color: var(--accent-color);">[STUD_OS KERNEL V4.0 INITIALIZED]</div>
+                    <div>SECURE CONNECTION ESTABLISHED. TYPE 'help' FOR CMDS.</div>
+                </div>
+                <div class="terminal-input-line">
+                    <span style="color: var(--accent-color);">root@stud:~#</span>
+                    <input type="text" class="terminal-input-field interactable" id="term-input" autocomplete="off" spellcheck="false" autofocus>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-quests">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>SYS_TASKS.EXE</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-quests">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="grid-2" style="grid-template-columns: 3fr 1fr;">
+                <input type="text" id="quest-input-field" class="os-input interactable" placeholder="DEFINE NEW OBJECTIVE...">
+                <button class="os-btn interactable" id="btn-add-quest">APPEND</button>
+            </div>
+            <div id="quest-list-container" style="display:flex; flex-direction:column; gap:10px; margin-top: 10px;">
+                </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-vfs">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>FILE_EXPLORER</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-vfs">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" id="vfs-current-path" style="padding: 10px; text-align: left; font-size: 0.85rem; color: var(--accent-color);">
+                PATH: /ROOT/SYS/
+            </div>
+            <div id="vfs-file-grid" style="display: flex; flex-direction: column; gap: 8px; margin-top: 5px;">
+                </div>
+        </div>
+    </div>
+
+</div> <script>
+    /* ---------------------------------------------------------
+       MODULE 1: MATH & UTILITIES
+       --------------------------------------------------------- */
+    const SYS_MATH = {
+        phi: 1.61803398875,
+        lerp: (start, end, amt) => (1 - amt) * start + amt * end,
+        random: (min, max) => Math.random() * (max - min) + min,
+        clamp: (val, min, max) => Math.min(Math.max(val, min), max)
+    };
+
+    /* ---------------------------------------------------------
+       MODULE 2: PHYSICS CURSOR ENGINE
+       --------------------------------------------------------- */
+    class CursorEngine {
+        constructor() {
+            this.dot = document.getElementById('cursor-dot');
+            this.ring = document.getElementById('cursor-ring');
+            
+            // Start centered
+            this.targetX = window.innerWidth / 2;
+            this.targetY = window.innerHeight / 2;
+            this.currentX = this.targetX;
+            this.currentY = this.targetY;
+
+            this.initListeners();
+            this.refreshInteractions();
+            this.render();
+        }
+
+        initListeners() {
+            window.addEventListener('mousemove', (e) => {
+                this.targetX = e.clientX;
+                this.targetY = e.clientY;
+            });
+
+            // Micro-interaction: Ring shrinks on click
+            window.addEventListener('mousedown', () => {
+                this.ring.style.transform = `translate(-50%, -50%) scale(0.85)`;
+                this.ring.style.borderColor = 'var(--text-color)';
+            });
+            
+            window.addEventListener('mouseup', () => {
+                this.ring.style.transform = `translate(-50%, -50%) scale(1)`;
+                this.ring.style.borderColor = ''; // Reverts to CSS default
+            });
+        }
+
+        refreshInteractions() {
+            // Attach hover states to all interactable elements dynamically
+            document.querySelectorAll('.interactable').forEach(el => {
+                // Remove old listeners to prevent duplicates if called multiple times
+                el.onmouseenter = null; 
+                el.onmouseleave = null;
+                
+                el.onmouseenter = () => document.body.classList.add('cursor-hover');
+                el.onmouseleave = () => document.body.classList.remove('cursor-hover');
+            });
+
+            document.querySelectorAll('input, textarea').forEach(el => {
+                el.onmouseenter = () => document.body.classList.add('cursor-text');
+                el.onmouseleave = () => document.body.classList.remove('cursor-text');
+            });
+        }
+
+        render() {
+            // Dot maps 1:1 with hardware mouse for precision
+            this.dot.style.left = `${this.targetX}px`;
+            this.dot.style.top = `${this.targetY}px`;
+
+            // Ring uses lerp for smooth, organic drag
+            this.currentX = SYS_MATH.lerp(this.currentX, this.targetX, 0.16);
+            this.currentY = SYS_MATH.lerp(this.currentY, this.targetY, 0.16);
+            
+            this.ring.style.left = `${this.currentX}px`;
+            this.ring.style.top = `${this.currentY}px`;
+
+            requestAnimationFrame(() => this.render());
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 3: MYCELIUM PARTICLE GRAPH
+       --------------------------------------------------------- */
+    class MyceliumEngine {
+        constructor() {
+            this.canvas = document.getElementById('mycelium-canvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.particles = [];
+            this.maxDistance = 150;
+            
+            this.handleResize();
+            window.addEventListener('resize', () => this.handleResize());
+            
+            // Node density scales with screen size
+            let nodeCount = Math.floor((window.innerWidth * window.innerHeight) / 18000);
+            this.spawnNodes(SYS_MATH.clamp(nodeCount, 40, 100));
+            
+            this.animate();
+        }
+
+        handleResize() {
+            this.canvas.width = window.innerWidth;
+            this.canvas.height = window.innerHeight;
+        }
+
+        spawnNodes(count) {
+            this.particles = [];
+            for (let i = 0; i < count; i++) {
+                this.particles.push({
+                    x: Math.random() * this.canvas.width,
+                    y: Math.random() * this.canvas.height,
+                    vx: SYS_MATH.random(-0.3, 0.3),
+                    vy: SYS_MATH.random(-0.3, 0.3),
+                    radius: SYS_MATH.random(1.5, 3.5)
+                });
+            }
+        }
+
+        animate() {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            
+            const isDark = document.body.classList.contains('dark-mode');
+            const nodeColor = isDark ? '#8b9a46' : '#4a7c59';
+            const lineColor = isDark ? '139, 154, 70' : '74, 124, 89';
+            
+            this.ctx.fillStyle = nodeColor;
+            this.ctx.lineWidth = 1.2;
+
+            for (let i = 0; i < this.particles.length; i++) {
+                let p = this.particles[i];
+                
+                // Physics update
+                p.x += p.vx;
+                p.y += p.vy;
+
+                // Organic boundary bounce
+                if (p.x < 0 || p.x > this.canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > this.canvas.height) p.vy *= -1;
+
+                // Render Node
+                this.ctx.beginPath();
+                this.ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // Calculate web connections
+                for (let j = i + 1; j < this.particles.length; j++) {
+                    let p2 = this.particles[j];
+                    let dist = Math.hypot(p.x - p2.x, p.y - p2.y);
+                    
+                    if (dist < this.maxDistance) {
+                        let opacity = 1 - (dist / this.maxDistance);
+                        this.ctx.strokeStyle = `rgba(${lineColor}, ${opacity * 0.4})`;
+                        
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(p.x, p.y);
+                        this.ctx.lineTo(p2.x, p2.y);
+                        this.ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(() => this.animate());
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 4: DYNAMIC WINDOW MANAGER (DWM)
+       --------------------------------------------------------- */
+    class WindowManager {
+        constructor(audioEngine) {
+         this.baseZIndex = 100;
+            this.audio = audioEngine; // Injected later by the main Kernel class
+            
+            this.bindDesktopIcons();
+            this.bindWindowControls();
+            this.bindDragging();
+        }
+
+        spawn(appId) {
+            const win = document.getElementById(appId);
+            if (!win) return;
+
+            // Remove minimized state if present
+            win.classList.remove('minimized');
+
+            // Responsive Golden Ratio Sizing
+            let maxWidth = window.innerWidth > 900 ? 700 : window.innerWidth * 0.9;
+            win.style.width = `${maxWidth}px`;
+            win.style.height = `${maxWidth / SYS_MATH.phi}px`;
+            
+            // Center spawn with slight organic offset to prevent perfect stacking
+            let offsetX = SYS_MATH.random(-30, 30);
+            let offsetY = SYS_MATH.random(-30, 30);
+            win.style.left = `${(window.innerWidth - maxWidth) / 2 + offsetX}px`;
+            win.style.top = `${(window.innerHeight - (maxWidth / SYS_MATH.phi)) / 2 + offsetY}px`;
+            
+            win.classList.add('open');
+            this.bringToFront(win);
+            
+            if(this.audio) this.audio.play('spawn');
+        }
+
+        close(appId) {
+            const win = document.getElementById(appId);
+            if (win) {
+                win.classList.remove('open');
+                win.classList.remove('minimized');
+                if(this.audio) this.audio.play('close');
+            }
+        }
+
+        minimize(win) {
+            win.classList.add('minimized');
+            setTimeout(() => {
+                win.classList.remove('open');
+                win.classList.remove('minimized');
+            }, 150); // Matches CSS transition duration
+            if(this.audio) this.audio.play('click');
+        }
+
+        bringToFront(win) {
+            this.baseZIndex++;
+            win.style.zIndex = this.baseZIndex;
+        }
+
+        bindDesktopIcons() {
+            document.querySelectorAll('[data-launch]').forEach(icon => {
+                icon.addEventListener('click', () => {
+                    if(!icon.classList.contains('locked')) {
+                        this.spawn(icon.dataset.launch);
+                    } else {
+                        if(this.audio) this.audio.play('error');
+                        icon.classList.add('shake-err');
+                        setTimeout(() => icon.classList.remove('shake-err'), 300);
+                    }
+                });
+            });
+        }
+
+        bindWindowControls() {
+            // Click anywhere on window to bring forward
+            document.querySelectorAll('.os-window').forEach(win => {
+                win.addEventListener('mousedown', () => this.bringToFront(win));
+            });
+
+            // Close buttons
+            document.querySelectorAll('[data-action="close-window"]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.close(btn.dataset.target);
+                });
+            });
+
+            // Minimize buttons
+            document.querySelectorAll('[data-action="min-window"]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.minimize(btn.closest('.os-window'));
+                });
+            });
+        }
+
+        bindDragging() {
+            document.querySelectorAll('.window-drag-handle').forEach(handle => {
+                const win = handle.closest('.os-window') || document.getElementById('system-bot');
+                if(!win) return;
+
+                handle.addEventListener('mousedown', (e) => {
+                    // Prevent drag if clicking a button inside the titlebar
+                    if(e.target.closest('.window-controls')) return;
+
+                    let offsetX = e.clientX - win.offsetLeft;
+                    let offsetY = e.clientY - win.offsetTop;
+                    
+                    if (win.classList.contains('os-window')) this.bringToFront(win);
+
+                    // Add a dragging class to disable transitions temporarily for zero-latency dragging
+                    win.style.transition = 'none';
+
+                    const move = (ev) => {
+                        win.style.left = `${ev.clientX - offsetX}px`;
+                        win.style.top = `${ev.clientY - offsetY}px`;
+                    };
+                    
+                    const stopMove = () => {
+                        document.removeEventListener('mousemove', move);
+                        document.removeEventListener('mouseup', stopMove);
+                        // Re-enable transitions
+                        win.style.transition = '';
+                    };
+
+                    document.addEventListener('mousemove', move);
+                    document.addEventListener('mouseup', stopMove);
+                });
+            });
+        }
+    }
+    /* ---------------------------------------------------------
+       MODULE 5: SYNTHESIZED AUDIO ENGINE
+       --------------------------------------------------------- */
+    class AudioEngine {
+        constructor() {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            this.enabled = true;
+            
+            // Interaction bindings
+            document.addEventListener('click', () => {
+                if(this.ctx.state === 'suspended') this.ctx.resume();
+            });
+        }
+
+        play(type) {
+            if (!this.enabled || !this.ctx) return;
+            
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            const now = this.ctx.currentTime;
+            
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+
+            switch (type) {
+                case 'click':
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800, now);
+                    osc.frequency.exponentialRampToValueAtTime(300, now + 0.05);
+                    gain.gain.setValueAtTime(0.05, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                    break;
+                case 'spawn':
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.linearRampToValueAtTime(600, now + 0.1);
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.08, now + 0.05);
+                    gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                    break;
+                case 'close':
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(600, now);
+                    osc.frequency.linearRampToValueAtTime(400, now + 0.1);
+                    gain.gain.setValueAtTime(0.08, now);
+                    gain.gain.linearRampToValueAtTime(0, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                    break;
+                case 'error':
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.setValueAtTime(100, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                    break;
+                case 'success':
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(800, now);
+                    osc.frequency.setValueAtTime(1200, now + 0.1);
+                    gain.gain.setValueAtTime(0.05, now);
+                    gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                    break;
+            }
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 6: SYSTEM HUD & NOTIFICATION MANAGER
+       --------------------------------------------------------- */
+    class SystemHUD {
+        constructor(audioEngine) {
+            this.audio = audioEngine;
+            this.xp = parseInt(localStorage.getItem('stud_os_xp')) || 0;
+            
+            this.xpDisplay = document.getElementById('hud-xp');
+            this.lvlDisplay = document.getElementById('hud-level');
+            this.xpBarFill = document.getElementById('sys-xp-fill');
+            this.notifCenter = document.getElementById('sys-notifications');
+            
+            this.updateDisplay();
+            this.initClock();
+        }
+
+        initClock() {
+            const clock = document.getElementById('hud-clock');
+            setInterval(() => {
+                const d = new Date();
+                clock.innerText = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        addXP(amount) {
+            this.xp += amount;
+            if (this.xp < 0) this.xp = 0;
+            localStorage.setItem('stud_os_xp', this.xp.toString());
+            
+            this.updateDisplay();
+            
+            if (amount > 0) {
+                this.toast(`+${amount} XP GAINED`);
+                this.audio.play('success');
+                
+                // Micro-interaction
+                this.xpDisplay.classList.remove('pop');
+                void this.xpDisplay.offsetWidth; // Trigger reflow
+                this.xpDisplay.classList.add('pop');
+                setTimeout(() => this.xpDisplay.classList.remove('pop'), 300);
+            } else if (amount < 0) {
+                this.toast(`PENALTY: ${amount} XP`);
+                this.audio.play('error');
+            }
+        }
+
+        updateDisplay() {
+            // Level formula: Level 1 = 0-99XP, Level 2 = 100-399XP, Level 3 = 400-899XP...
+            const currentLevel = Math.floor(Math.sqrt(this.xp / 100)) + 1;
+            const prevLvlXP = Math.pow(currentLevel - 1, 2) * 100;
+            const nextLvlXP = Math.pow(currentLevel, 2) * 100;
+            
+            const progress = ((this.xp - prevLvlXP) / (nextLvlXP - prevLvlXP)) * 100;
+
+            this.xpDisplay.innerText = `XP: ${this.xp.toString().padStart(4, '0')}`;
+            this.lvlDisplay.innerText = `LVL ${currentLevel.toString().padStart(2, '0')}`;
+            this.xpBarFill.style.width = `${progress}%`;
+        }
+
+        toast(message) {
+            const t = document.createElement('div');
+            t.className = 'os-toast';
+            t.innerHTML = `<span style="color: var(--accent-color);">>_</span> ${message}`;
+            
+            this.notifCenter.appendChild(t);
+            
+            // Animate in
+            setTimeout(() => t.classList.add('show'), 10);
+            
+            // Animate out and remove
+            setTimeout(() => {
+                t.classList.remove('show');
+                setTimeout(() => t.remove(), 400); // Wait for CSS transition
+            }, 3000);
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 7: VIRTUAL FILE SYSTEM (VFS)
+       --------------------------------------------------------- */
+    class VirtualFS {
+        constructor() {
+            // Simulated Hard Drive
+            this.drive = {
+                "sys": {
+                    "_type": "dir",
+                    "kernel.sys": { _type: "file", content: "STUD_OS V4.0 KERNEL CORE.\nDO NOT MODIFY." },
+                    "config.json": { _type: "file", content: "{\n  \"theme\": \"organic\",\n  \"phi_ratio\": 1.618\n}" },
+                    "passwords.enc": { _type: "file", content: "ACCESS DENIED. ENCRYPTION ACTIVE." }
+                },
+                "home": {
+                    "_type": "dir",
+                    "hackathon.md": { _type: "file", content: "# YSWS HACKATHON\nTarget: 170 hours of coding.\nProject: Developer Utilities API." },
+                    "ideas.txt": { _type: "file", content: "- Phyto: Ecommerce for plants.\n- MycoMaze: 8-bit game.\n- StudOS: The Monolith." },
+                    "projects": {
+                        "_type": "dir",
+                        "dev_api.js": { _type: "file", content: "const api = new DeveloperUtils();\napi.init();" }
+                    }
+                }
+            };
+            
+            this.currentPath = ["home"];
+        }
+
+        // Resolves array path to actual object reference
+        resolvePath(pathArray) {
+            let current = this.drive;
+            for (let dir of pathArray) {
+                if (current[dir] && current[dir]._type === "dir") {
+                    current = current[dir];
+                } else {
+                    return null;
+                }
+            }
+            return current;
+        }
+
+        pwd() {
+            return "/" + this.currentPath.join("/");
+        }
+
+        ls() {
+            const dir = this.resolvePath(this.currentPath);
+            if (!dir) return "ERROR: DIR NOT FOUND";
+            
+            let output = [];
+            for (let key in dir) {
+                if (key !== "_type") {
+                    if (dir[key]._type === "dir") {
+                        output.push(`<span style="color: var(--accent-color);">[DIR] ${key}</span>`);
+                    } else {
+                        output.push(`[FILE] ${key}`);
+                    }
+                }
+            }
+            return output.length > 0 ? output.join("<br>") : "DIRECTORY IS EMPTY";
+        }
+
+        cd(target) {
+            if (target === "..") {
+                if (this.currentPath.length > 0) this.currentPath.pop();
+                return `CHANGED DIR TO ${this.pwd()}`;
+            }
+            
+            if (target === "/") {
+                this.currentPath = [];
+                return `CHANGED DIR TO /`;
+            }
+
+            const dir = this.resolvePath(this.currentPath);
+            if (dir && dir[target] && dir[target]._type === "dir") {
+                this.currentPath.push(target);
+                return `CHANGED DIR TO ${this.pwd()}`;
+            }
+            
+            return `cd: ${target}: No such directory`;
+        }
+
+        cat(filename) {
+            const dir = this.resolvePath(this.currentPath);
+            if (dir && dir[filename]) {
+                if (dir[filename]._type === "file") {
+                    return dir[filename].content.replace(/\n/g, '<br>');
+                } else {
+                    return `cat: ${filename}: Is a directory`;
+                }
+            }
+            return `cat: ${filename}: No such file`;
+        }
+    }
+/* ---------------------------------------------------------
+       MODULE 8: DYNAMIC HTML INJECTION (FOCUS HEIST)
+       --------------------------------------------------------- */
+    // Injecting the Heist App dynamically so we don't break the script flow
+    document.getElementById('os-window-layer').insertAdjacentHTML('beforeend', `
+    <div class="os-window" id="app-heist">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>FOCUS_HEIST.EXE</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-heist">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" id="heist-timer-display" style="font-size: calc(2rem * var(--phi)); letter-spacing: 2px;">
+                00:00
+            </div>
+            <div class="grid-2" id="heist-controls">
+                <input type="number" id="heist-duration" class="os-input interactable" value="25" min="1" max="120" title="Minutes">
+                <button class="os-btn interactable" id="btn-start-heist">ENGAGE</button>
+            </div>
+            <div id="heist-status" style="text-align: center; font-size: 0.85rem; margin-top: 10px; color: var(--warning-color);">
+                WARNING: LEAVING TAB RESULTS IN XP PENALTY.
+            </div>
+        </div>
+    </div>
+    `);
+
+    /* ---------------------------------------------------------
+       MODULE 9: TERMINAL LOGIC
+       --------------------------------------------------------- */
+    class TerminalApp {
+        constructor(vfs, hud, audio) {
+            this.vfs = vfs;
+            this.hud = hud;
+            this.audio = audio;
+            
+            this.input = document.getElementById('term-input');
+            this.output = document.getElementById('term-out');
+            
+            this.initTerminal();
+        }
+
+        initTerminal() {
+            this.input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const cmdRaw = this.input.value.trim();
+                    if (cmdRaw !== "") {
+                        this.processCommand(cmdRaw);
+                    }
+                    this.input.value = '';
+                }
+            });
+            
+            // Auto-focus terminal input when clicking inside the window
+            document.getElementById('app-terminal').addEventListener('click', () => {
+                this.input.focus();
+            });
+        }
+
+        print(htmlText) {
+            const div = document.createElement('div');
+            div.innerHTML = htmlText;
+            this.output.appendChild(div);
+            this.output.scrollTop = this.output.scrollHeight;
+        }
+
+        processCommand(cmdStr) {
+            // Print the entered command
+            this.print(`<span style="opacity: 0.5;">${this.vfs.pwd()}></span> ${cmdStr}`);
+            
+            const args = cmdStr.split(' ');
+            const cmd = args[0].toLowerCase();
+            
+            this.audio.play('click');
+
+            switch (cmd) {
+                case 'help':
+                    this.print("AVAILABLE CMDS:<br>- ls : List directory contents<br>- cd [dir] : Change directory<br>- cat [file] : Read file<br>- clear : Clear terminal<br>- xp : Check current XP level");
+                    break;
+                case 'clear':
+                    this.output.innerHTML = '';
+                    break;
+                case 'ls':
+                    this.print(this.vfs.ls());
+                    break;
+                case 'cd':
+                    if (args[1]) {
+                        this.print(this.vfs.cd(args[1]));
+                    } else {
+                        this.print("cd: missing operand");
+                    }
+                    break;
+                case 'cat':
+                    if (args[1]) {
+                        this.print(this.vfs.cat(args[1]));
+                    } else {
+                        this.print("cat: missing operand");
+                    }
+                    break;
+                case 'xp':
+                    this.print(`CURRENT XP: <span style="color: var(--accent-color);">${this.hud.xp}</span>`);
+                    break;
+                default:
+                    this.print(`ERR: Command '${cmd}' not recognized.`);
+                    this.audio.play('error');
+                    break;
+            }
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 10: QUESTS LOGIC (TODO LIST)
+       --------------------------------------------------------- */
+    class QuestsApp {
+        constructor(hud, audio) {
+            this.hud = hud;
+            this.audio = audio;
+            this.tasks = JSON.parse(localStorage.getItem('stud_os_quests')) || [];
+            
+            this.input = document.getElementById('quest-input-field');
+            this.btn = document.getElementById('btn-add-quest');
+            this.list = document.getElementById('quest-list-container');
+            
+            this.initQuests();
+            this.render();
+        }
+
+        initQuests() {
+            this.btn.addEventListener('click', () => this.addTask());
+            this.input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') this.addTask();
+            });
+        }
+
+        save() {
+            localStorage.setItem('stud_os_quests', JSON.stringify(this.tasks));
+        }
+
+        addTask() {
+            const val = this.input.value.trim();
+            if (val) {
+                this.tasks.push({ text: val, completed: false });
+                this.input.value = '';
+                this.save();
+                this.render();
+                this.audio.play('click');
+            }
+        }
+
+        completeTask(index) {
+            if (!this.tasks[index].completed) {
+                this.tasks[index].completed = true;
+                this.hud.addXP(50); // Reward 50 XP per completed quest
+                this.save();
+                this.render();
+            }
+        }
+
+        deleteTask(index) {
+            this.tasks.splice(index, 1);
+            this.save();
+            this.render();
+            this.audio.play('close');
+        }
+
+        render() {
+            this.list.innerHTML = '';
+            this.tasks.forEach((task, index) => {
+                const item = document.createElement('div');
+                item.className = `task-item ${task.completed ? 'completed' : ''}`;
+                
+                let checkBtn = task.completed 
+                    ? `<span style="color: var(--success-color);">✔ DONE</span>` 
+                    : `<button class="os-btn interactable" style="padding: 6px 12px; font-size: 0.75rem;" onclick="window.OS.Quests.completeTask(${index})">COMPLETE</button>`;
+
+                item.innerHTML = `
+                    <div style="flex: 1; margin-right: 15px; word-wrap: break-word;">${task.text}</div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        ${checkBtn}
+                        <button class="os-btn interactable" style="padding: 6px 10px; font-size: 0.75rem; border-color: var(--error-color);" onclick="window.OS.Quests.deleteTask(${index})">X</button>
+                    </div>
+                `;
+                this.list.appendChild(item);
+            });
+            
+            // Refresh cursor engine hover states for newly generated buttons
+            if (window.OS && window.OS.Cursor) window.OS.Cursor.refreshInteractions();
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 11: FILE EXPLORER UI LOGIC
+       --------------------------------------------------------- */
+    class FileExplorerApp {
+        constructor(vfs, terminal) {
+            this.vfs = vfs;
+            this.terminal = terminal; // Allows clicking a file to open it in terminal
+            this.pathDisplay = document.getElementById('vfs-current-path');
+            this.grid = document.getElementById('vfs-file-grid');
+            
+            // Re-render whenever VFS path changes
+            setInterval(() => this.checkPathChange(), 500);
+            this.lastPath = "";
+            this.render();
+        }
+
+        checkPathChange() {
+            const current = this.vfs.pwd();
+            if (current !== this.lastPath) {
+                this.lastPath = current;
+                this.render();
+            }
+        }
+
+        render() {
+            this.pathDisplay.innerText = `PATH: ${this.vfs.pwd()}`;
+            this.grid.innerHTML = '';
+            
+            const dir = this.vfs.resolvePath(this.vfs.currentPath);
+            if (!dir) return;
+
+            // Add 'Go Back' folder if not in root
+            if (this.vfs.currentPath.length > 0) {
+                this.createNode("..", "dir", "🔙");
+            }
+
+            for (let key in dir) {
+                if (key !== "_type") {
+                    this.createNode(key, dir[key]._type, dir[key]._type === "dir" ? "📁" : "📄");
+                }
+            }
+            if (window.OS && window.OS.Cursor) window.OS.Cursor.refreshInteractions();
+        }
+
+        createNode(name, type, icon) {
+            const node = document.createElement('div');
+            node.className = "task-item interactable";
+            node.style.cursor = "none";
+            node.innerHTML = `<span>${icon} ${name}</span>`;
+            
+            node.onclick = () => {
+                if (type === "dir") {
+                    this.vfs.cd(name);
+                    this.render();
+                    if(window.OS) window.OS.Audio.play('click');
+                } else if (type === "file") {
+                    // Send to terminal
+                    if(window.OS) {
+                        window.OS.WindowManager.spawn('app-terminal');
+                        window.OS.Terminal.processCommand(`cat ${name}`);
+                    }
+                }
+            };
+            this.grid.appendChild(node);
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 12: FOCUS HEIST LOGIC (POMODORO)
+       --------------------------------------------------------- */
+    class FocusHeistApp {
+        constructor(hud, audio) {
+            this.hud = hud;
+            this.audio = audio;
+            
+            this.display = document.getElementById('heist-timer-display');
+            this.input = document.getElementById('heist-duration');
+            this.btn = document.getElementById('btn-start-heist');
+            this.controls = document.getElementById('heist-controls');
+            
+            this.interval = null;
+            this.isActive = false;
+            this.secondsRemaining = 0;
+            this.totalMinutes = 0;
+
+            this.initHeist();
+        }
+
+        initHeist() {
+            this.btn.addEventListener('click', () => this.startHeist());
+            
+            // The Penalty Listener
+            window.addEventListener('blur', () => {
+                if (this.isActive) {
+                    this.failHeist();
+                }
+            });
+        }
+
+        startHeist() {
+            const mins = parseInt(this.input.value);
+            if (isNaN(mins) || mins <= 0) return;
+
+            this.totalMinutes = mins;
+            this.secondsRemaining = mins * 60;
+            this.isActive = true;
+            
+            this.controls.style.display = 'none';
+            this.hud.toast(`HEIST ENGAGED: ${mins} MINS`);
+            this.audio.play('spawn');
+
+            this.updateDisplay();
+            this.interval = setInterval(() => this.tick(), 1000);
+        }
+
+        tick() {
+            this.secondsRemaining--;
+            this.updateDisplay();
+
+            if (this.secondsRemaining <= 0) {
+                this.completeHeist();
+            }
+        }
+
+        updateDisplay() {
+            const m = Math.floor(this.secondsRemaining / 60).toString().padStart(2, '0');
+            const s = (this.secondsRemaining % 60).toString().padStart(2, '0');
+            this.display.innerText = `${m}:${s}`;
+        }
+
+        completeHeist() {
+            clearInterval(this.interval);
+            this.isActive = false;
+            this.controls.style.display = 'grid';
+            this.display.innerText = "00:00";
+            
+            // Reward: 20 XP per minute focused
+            const reward = this.totalMinutes * 20;
+            this.hud.addXP(reward);
+            this.hud.toast(`HEIST SUCCESS: DATA SECURED`);
+        }
+
+        failHeist() {
+            clearInterval(this.interval);
+            this.isActive = false;
+            this.controls.style.display = 'grid';
+            this.display.innerText = "00:00";
+            
+            // Penalty: -100 XP for losing focus
+            this.hud.addXP(-100);
+            this.hud.toast(`HEIST FAILED: CONNECTION LOST`);
+        }
+    }
+    /* ---------------------------------------------------------
+       MODULE 13: DYNAMIC HTML INJECTION (MINIGAMES)
+       --------------------------------------------------------- */
+    document.getElementById('os-window-layer').insertAdjacentHTML('beforeend', `
+    <div class="os-window" id="app-bugfixer">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>SYS_DEBUGGER.EXE</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-bugfixer">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" id="bug-threat-level">THREAT LEVEL: 0</div>
+            <div class="grid-3" id="bug-arena" style="margin-top: 10px;">
+                </div>
+            <button class="os-btn interactable" id="btn-scan-bugs" style="margin-top: 10px;">INITIATE KERNEL SCAN</button>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-flexcss">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>FLEX_TRAINER</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-flexcss">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" id="flex-target-name" style="font-size: 1.1rem;">TARGET: CENTER</div>
+            <div class="status-box" id="flex-arena" style="height: 180px; position: relative; display: flex; padding: 0;">
+                <div id="flex-ghost" style="width:40px; height:40px; border: 2px dashed var(--border-color); position: absolute; opacity: 0.5;"></div>
+                <div id="flex-player" style="width:40px; height:40px; background: var(--accent-color); z-index: 2; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);"></div>
+            </div>
+            <div class="grid-2" id="flex-btn-container" style="margin-top: 10px;">
+                </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-typer">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>KEY_MASH_PROTOCOL</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-typer">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" style="text-align: left; font-size: 0.85rem; height: 120px; display: flex; align-items: center;">
+                <span id="typer-target-text" style="opacity: 0.6;"></span>
+            </div>
+            <input type="text" id="typer-input-field" class="os-input interactable" placeholder="MASH KEYBOARD TO OVERRIDE..." autocomplete="off" spellcheck="false">
+            <div class="grid-2" style="margin-top: 5px;">
+                <div class="status-box" id="typer-wpm" style="padding: 10px;">WPM: 0</div>
+                <div class="status-box" id="typer-acc" style="padding: 10px;">ACC: 100%</div>
+            </div>
+        </div>
+    </div>
+    `);
+
+    /* ---------------------------------------------------------
+       MODULE 14: BUG FIXER LOGIC
+       --------------------------------------------------------- */
+    class BugFixerApp {
+        constructor(hud, audio) {
+            this.hud = hud;
+            this.audio = audio;
+            this.arena = document.getElementById('bug-arena');
+            this.btnScan = document.getElementById('btn-scan-bugs');
+            this.threatDisplay = document.getElementById('bug-threat-level');
+            
+            this.nodes = [];
+            this.isScanning = false;
+            
+            this.initArena();
+        }
+
+        initArena() {
+            // Create 9 nodes
+            for (let i = 0; i < 9; i++) {
+                let node = document.createElement('div');
+                node.className = 'bug-node interactable';
+                node.dataset.state = 'clean';
+                
+                node.addEventListener('click', () => this.handleNodeClick(node));
+                this.arena.appendChild(node);
+                this.nodes.push(node);
+            }
+
+            this.btnScan.addEventListener('click', () => {
+                if (!this.isScanning) this.runScan();
+            });
+        }
+
+        runScan() {
+            this.isScanning = true;
+            this.threatDisplay.innerText = "SCANNING...";
+            this.audio.play('spawn');
+            let cycles = 20;
+            
+            const scanInterval = setInterval(() => {
+                // Reset all nodes
+                this.nodes.forEach(n => {
+                    n.className = 'bug-node interactable';
+                    n.innerText = '';
+                    n.dataset.state = 'clean';
+                });
+
+                if (cycles <= 0) {
+                    clearInterval(scanInterval);
+                    this.isScanning = false;
+                    this.threatDisplay.innerText = "THREAT LEVEL: 0";
+                    return;
+                }
+
+                // Pick a random node to corrupt
+                let targetIndex = Math.floor(Math.random() * 9);
+                let isGolden = Math.random() > 0.85; // 15% chance for a golden bug
+                let targetNode = this.nodes[targetIndex];
+
+                if (isGolden) {
+                    targetNode.classList.add('golden');
+                    targetNode.innerText = '$$$';
+                    targetNode.dataset.state = 'golden';
+                } else {
+                    targetNode.classList.add('corrupt');
+                    targetNode.innerText = 'ERR';
+                    targetNode.dataset.state = 'corrupt';
+                }
+
+                cycles--;
+            }, 500);
+        }
+
+        handleNodeClick(node) {
+            if (node.dataset.state === 'corrupt') {
+                node.className = 'bug-node interactable';
+                node.innerText = 'OK';
+                node.dataset.state = 'clean';
+                this.hud.addXP(15);
+            } else if (node.dataset.state === 'golden') {
+                node.className = 'bug-node interactable';
+                node.innerText = 'MAX';
+                node.dataset.state = 'clean';
+                this.hud.addXP(100);
+            } else if (this.isScanning) {
+                // Penalize for clicking an empty node during an active scan (misfire)
+                this.hud.addXP(-10);
+                node.classList.add('shake-err');
+                setTimeout(() => node.classList.remove('shake-err'), 300);
+            }
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 15: FLEX CSS TRAINER LOGIC
+       --------------------------------------------------------- */
+    class FlexCSSApp {
+        constructor(hud, audio) {
+            this.hud = hud;
+            this.audio = audio;
+            
+            this.title = document.getElementById('flex-target-name');
+            this.ghost = document.getElementById('flex-ghost');
+            this.player = document.getElementById('flex-player');
+            this.btnContainer = document.getElementById('flex-btn-container');
+            
+            this.levels = [
+                { name: "CENTER", ghostStyle: "top: 50%; left: 50%; transform: translate(-50%, -50%);", correct: "justify-content: center; align-items: center;", wrong: "justify-content: flex-end; align-items: center;" },
+                { name: "TOP RIGHT", ghostStyle: "top: 0; right: 0;", correct: "justify-content: flex-end; align-items: flex-start;", wrong: "justify-content: center; align-items: flex-start;" },
+                { name: "BOTTOM LEFT", ghostStyle: "bottom: 0; left: 0;", correct: "justify-content: flex-start; align-items: flex-end;", wrong: "justify-content: flex-end; align-items: flex-end;" },
+                { name: "BOTTOM RIGHT", ghostStyle: "bottom: 0; right: 0;", correct: "justify-content: flex-end; align-items: flex-end;", wrong: "justify-content: space-between; align-items: flex-end;" }
+            ];
+
+            this.loadLevel();
+        }
+
+        loadLevel() {
+            this.btnContainer.innerHTML = '';
+            this.player.style = "width:40px; height:40px; background: var(--accent-color); z-index: 2; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);"; // Reset player
+            
+            let lvl = this.levels[Math.floor(Math.random() * this.levels.length)];
+            this.title.innerText = `TARGET: ${lvl.name}`;
+            
+            // Set Ghost position manually (absolute)
+            this.ghost.style = `width:40px; height:40px; border: 2px dashed var(--border-color); position: absolute; opacity: 0.5; ${lvl.ghostStyle}`;
+            
+            // Randomize button order
+            let options = Math.random() > 0.5 ? [lvl.correct, lvl.wrong] : [lvl.wrong, lvl.correct];
+            
+            options.forEach(opt => {
+                let btn = document.createElement('button');
+                btn.className = 'os-btn interactable';
+                btn.style.textTransform = "none";
+                btn.style.fontSize = "0.75rem";
+                btn.innerText = opt;
+                
+                btn.addEventListener('click', () => {
+                    if (opt === lvl.correct) {
+                        document.getElementById('flex-arena').style = `height: 180px; position: relative; display: flex; padding: 0; ${opt}`;
+                        this.hud.addXP(80);
+                        setTimeout(() => this.loadLevel(), 1000); // Wait 1s then load next
+                    } else {
+                        this.audio.play('error');
+                        btn.classList.add('shake-err');
+                        setTimeout(() => btn.classList.remove('shake-err'), 300);
+                    }
+                });
+                
+                this.btnContainer.appendChild(btn);
+            });
+            
+            if (window.OS && window.OS.Cursor) window.OS.Cursor.refreshInteractions();
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 16: KEY MASH (TYPER) LOGIC
+       --------------------------------------------------------- */
+    class TyperApp {
+        constructor(hud, audio) {
+            this.hud = hud;
+            this.audio = audio;
+            
+            this.targetEl = document.getElementById('typer-target-text');
+            this.inputEl = document.getElementById('typer-input-field');
+            this.wpmEl = document.getElementById('typer-wpm');
+            
+            this.snippets = [
+                "function bypassMainframe() {\n  return crypto.decrypt(sys.core);\n}",
+                "const vfs = new VirtualFS();\nvfs.mount('/dev/sda1');\nconsole.log('Mounted.');",
+                "interface DeveloperConfig {\n  theme: 'organic';\n  phi_ratio: 1.618;\n}"
+            ];
+            
+            this.currentSnippet = "";
+            this.startTime = null;
+            
+            this.initTyper();
+        }
+
+        initTyper() {
+            this.loadSnippet();
+            
+            this.inputEl.addEventListener('input', (e) => {
+                e.preventDefault(); // Stop normal typing behavior
+                
+                if (!this.startTime) this.startTime = Date.now();
+                
+                let currentLen = this.inputEl.value.length;
+                if (currentLen > this.currentSnippet.length) currentLen = this.currentSnippet.length;
+                
+                // Hacky "Mash" mechanic: The input automatically forces the correct character 
+                // based on how many keys the user has pressed.
+                this.inputEl.value = this.currentSnippet.substring(0, currentLen);
+                
+                // Win Condition
+                if (currentLen === this.currentSnippet.length) {
+                    let timeMins = (Date.now() - this.startTime) / 60000;
+                    let words = this.currentSnippet.length / 5; // standard WPM calculation
+                    let wpm = Math.round(words / timeMins);
+                    
+                    this.wpmEl.innerText = `WPM: ${wpm}`;
+                    
+                    // Reward based on speed
+                    let xpReward = wpm > 80 ? 150 : 75;
+                    this.hud.addXP(xpReward);
+                    
+                    this.inputEl.value = '';
+                    this.startTime = null;
+                    this.loadSnippet();
+                }
+            });
+        }
+
+        loadSnippet() {
+            this.currentSnippet = this.snippets[Math.floor(Math.random() * this.snippets.length)];
+            this.targetEl.innerText = this.currentSnippet;
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 17: MARKET APP (UNLOCK SYSTEM)
+       --------------------------------------------------------- */
+    document.getElementById('os-window-layer').insertAdjacentHTML('beforeend', `
+    <div class="os-window" id="app-market">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>SYS_MARKET.EXE</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-market">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div id="market-grid" class="grid-2">
+                </div>
+        </div>
+    </div>
+    `);
+
+    class MarketApp {
+        constructor(hud, audio, windowManager) {
+            this.hud = hud;
+            this.audio = audio;
+            this.wm = windowManager;
+            this.grid = document.getElementById('market-grid');
+            
+            // Define unlockable apps
+            this.storeItems = [
+                { id: 'app-bugfixer', iconId: 'icon-bugfixer', name: 'SYS_DEBUGGER', cost: 300 },
+                { id: 'app-flexcss', iconId: 'icon-flexcss', name: 'FLEX_TRAINER', cost: 500 },
+                { id: 'app-typer', iconId: 'icon-typer', name: 'KEY_MASH', cost: 800 }
+            ];
+            
+            // Load unlocked apps from local storage
+            this.unlocked = new Set(JSON.parse(localStorage.getItem('stud_os_unlocks')) || []);
+            
+            this.render();
+        }
+
+        render() {
+            this.grid.innerHTML = '';
+            
+            // First, unlock icons on the desktop if they are already owned
+            this.unlocked.forEach(appId => {
+                const item = this.storeItems.find(i => i.id === appId);
+                if (item) {
+                    const icon = document.getElementById(item.iconId);
+                    if (icon) icon.classList.remove('locked');
+                }
+            });
+
+            // Build the shop UI
+            this.storeItems.forEach(item => {
+                const isOwned = this.unlocked.has(item.id);
+                const btn = document.createElement('button');
+                btn.className = 'os-btn interactable';
+                
+                if (isOwned) {
+                    btn.innerText = `${item.name} [OWNED]`;
+                    btn.style.opacity = '0.5';
+                    btn.style.pointerEvents = 'none';
+                } else {
+                    btn.innerText = `BUY ${item.name} [${item.cost} XP]`;
+                    btn.onclick = () => this.purchase(item, btn);
+                }
+                
+                this.grid.appendChild(btn);
+            });
+            
+            if (window.OS && window.OS.Cursor) window.OS.Cursor.refreshInteractions();
+        }
+
+        purchase(item, btnElement) {
+            if (this.hud.xp >= item.cost) {
+                // Deduct XP and save unlock
+                this.hud.addXP(-item.cost);
+                this.unlocked.add(item.id);
+                localStorage.setItem('stud_os_unlocks', JSON.stringify([...this.unlocked]));
+                
+                this.audio.play('success');
+                this.hud.toast(`${item.name} ACQUIRED.`);
+                this.render(); // Re-render shop and desktop icons
+            } else {
+                // Not enough XP
+                this.audio.play('error');
+                btnElement.classList.add('shake-err');
+                setTimeout(() => btnElement.classList.remove('shake-err'), 300);
+            }
+        }
+    }
+
+    /* ---------------------------------------------------------
+       MODULE 18: MASTER SYSTEM KERNEL
+       --------------------------------------------------------- */
+    class SystemKernel {
+        constructor() {
+            // 1. Initialize Background Engines
+            this.Cursor = new CursorEngine();
+            this.Mycelium = new MyceliumEngine();
+            
+            // 2. Initialize Core Systems
+            this.Audio = new AudioEngine();
+            this.HUD = new SystemHUD(this.Audio);
+            this.VFS = new VirtualFS();
+            this.WindowManager = new WindowManager(this.Audio);
+            
+            // 3. Initialize Applications
+            this.Terminal = new TerminalApp(this.VFS, this.HUD, this.Audio);
+            this.Quests = new QuestsApp(this.HUD, this.Audio);
+            this.FileExplorer = new FileExplorerApp(this.VFS, this.Terminal);
+            this.Heist = new FocusHeistApp(this.HUD, this.Audio);
+            this.BugFixer = new BugFixerApp(this.HUD, this.Audio);
+            this.FlexCSS = new FlexCSSApp(this.HUD, this.Audio);
+            this.Typer = new TyperApp(this.HUD, this.Audio);
+            this.Market = new MarketApp(this.HUD, this.Audio, this.WindowManager);
+            
+            this.initGlobalBindings();
+            this.bindBootSequence();
+        }
+
+        initGlobalBindings() {
+            // Theme Toggle
+            document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+                document.body.classList.toggle('dark-mode');
+                this.Audio.play('click');
+            });
+
+            // Bot interaction
+            const bot = document.getElementById('system-bot');
+            const bubble = document.getElementById('bot-bubble');
+            bot.addEventListener('dblclick', () => {
+                this.Audio.play('spawn');
+                bubble.innerText = "SYSTEM OPTIMAL.";
+                bubble.classList.add('active');
+                setTimeout(() => bubble.classList.remove('active'), 3000);
+            });
+        }
+
+        bindBootSequence() {
+            const btn = document.getElementById('btn-init-kernel');
+            const screen = document.getElementById('boot-screen');
+            const log = document.getElementById('boot-terminal-log');
+            const barWrap = document.getElementById('boot-progress-wrap');
+            const barFill = document.getElementById('boot-progress-fill');
+
+            btn.addEventListener('click', () => {
+                // User gesture enables AudioContext
+                if (this.Audio.ctx.state === 'suspended') this.Audio.ctx.resume();
+                
+                btn.style.display = 'none';
+                barWrap.style.display = 'block';
+                
+                const bootSteps = [
+                    "ALLOCATING MEMORY BLOCKS...",
+                    "LOADING ORGANIC UI ASSETS...",
+                    "INITIALIZING MYCELIUM PHYSICS...",
+                    "MOUNTING VIRTUAL FILE SYSTEM...",
+                    "BYPASSING SECURITY PROTOCOLS...",
+                    "KERNEL READY."
+                ];
+                
+                let step = 0;
+                
+                const bootInterval = setInterval(() => {
+                    if (step < bootSteps.length) {
+                        const div = document.createElement('div');
+                        div.innerText = `> ${bootSteps[step]}`;
+                        log.appendChild(div);
+                        
+                        barFill.style.width = `${((step + 1) / bootSteps.length) * 100}%`;
+                        this.Audio.play('click');
+                        
+                        step++;
+                    } else {
+                        clearInterval(bootInterval);
+                        this.Audio.play('success');
+                        
+                        // Fade out boot screen
+                        screen.style.opacity = '0';
+                        setTimeout(() => {
+                            screen.style.display = 'none';
+                            this.HUD.toast("SYSTEM ONLINE");
+                        }, 800); // Matches CSS transition time
+                    }
+                }, 400); // Speed of boot text
+            });
+        }
+    }
+
+    /* ---------------------------------------------------------
+       SYSTEM IGNITION
+       --------------------------------------------------------- */
+    // Wait for DOM to be fully painted before initializing the Kernel
+    window.addEventListener('DOMContentLoaded', () => {
+        window.OS = new SystemKernel();
+    });
+
+    /* =========================================================
+       MODULE 19: CODE-SPACE IDE (HTML INJECTION & UI)
+       ========================================================= */
+    // Inject the Desktop Icon
+    document.getElementById('desktop-environment').insertAdjacentHTML('beforeend', `
+        <div class="desktop-icon interactable" data-launch="app-codespace">
+            <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            <span>CODE_SPACE</span>
+        </div>
+    `);
+
+    // Inject the App Window
+    document.getElementById('os-window-layer').insertAdjacentHTML('beforeend', `
+    <div class="os-window" id="app-codespace" style="width: 800px; height: 500px; max-width: 95vw;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>CODE_SPACE // LIVE_EDITOR</span>
+            <div class="window-controls">
+                <button class="os-btn interactable" id="btn-run-code" style="padding: 4px 12px; font-size: 0.75rem; margin-right: 10px; background: var(--accent-color); color: var(--bg-color);">COMPILE</button>
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-codespace">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 0; display: flex; flex-direction: row; overflow: hidden; background: var(--text-color);">
+            
+            <div style="flex: 1; display: flex; position: relative; border-right: 2px solid var(--border-color);">
+                <div id="ide-lines" style="padding: 15px 5px; background: rgba(0,0,0,0.2); color: var(--accent-color); text-align: right; user-select: none; font-size: 0.9rem; line-height: 1.5; overflow: hidden; width: 45px;">1</div>
+                
+                <div style="position: relative; flex: 1; overflow: hidden;">
+                    <textarea id="ide-input" class="interactable" spellcheck="false" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 15px; margin: 0; border: none; background: transparent; color: transparent; caret-color: var(--bg-color); font-size: 0.9rem; line-height: 1.5; resize: none; z-index: 2; white-space: pre; overflow: auto;"></textarea>
+                    
+                    <pre id="ide-highlight" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 15px; margin: 0; border: none; background: transparent; color: var(--bg-color); font-size: 0.9rem; line-height: 1.5; pointer-events: none; z-index: 1; white-space: pre; overflow: hidden;"></pre>
+                </div>
+            </div>
+
+            <div style="flex: 1; background: #fff; position: relative;">
+                <iframe id="ide-preview" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+    `);
+
+    /* =========================================================
+       MODULE 20: CODE-SPACE LOGIC ENGINE
+       ========================================================= */
+    class CodeSpaceApp {
+        constructor(hud, audio) {
+            this.hud = hud;
+            this.audio = audio;
+            
+            this.input = document.getElementById('ide-input');
+            this.highlight = document.getElementById('ide-highlight');
+            this.lines = document.getElementById('ide-lines');
+            this.preview = document.getElementById('ide-preview');
+            this.runBtn = document.getElementById('btn-run-code');
+            
+            this.initEditor();
+        }
+
+        initEditor() {
+            // Synchronize scrolling between the transparent textarea and the highlighted text
+            this.input.addEventListener('scroll', () => {
+                this.highlight.scrollTop = this.input.scrollTop;
+                this.highlight.scrollLeft = this.input.scrollLeft;
+                this.lines.scrollTop = this.input.scrollTop;
+            });
+
+            // Handle typing and real-time updates
+            this.input.addEventListener('input', () => {
+                this.updateSyntax();
+                this.updateLines();
+            });
+
+            // Handle Tab key formatting
+            this.input.addEventListener('keydown', (e) => {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const start = this.input.selectionStart;
+                    const end = this.input.selectionEnd;
+                    
+                    // Insert 2 spaces for tab
+                    this.input.value = this.input.value.substring(0, start) + "  " + this.input.value.substring(end);
+                    this.input.selectionStart = this.input.selectionEnd = start + 2;
+                    
+                    this.updateSyntax();
+                }
+            });
+
+            // Execute code on button click
+            this.runBtn.addEventListener('click', () => {
+                this.executeCode();
+            });
+
+            // Set initial organic boilerplate code
+            this.input.value = "\n<style>\n  body {\n    background: #e8ecd7;\n    color: #2c4c3b;\n    font-family: monospace;\n    padding: 20px;\n  }\n  h1 {\n    border-bottom: 2px solid #8b9a46;\n    padding-bottom: 10px;\n  }\n</style>\n\n<h1>PHYTO_PREVIEW</h1>\n<p>Systems functional.</p>\n\n<script>\n  console.log('Under the hood access granted.');\n<\/script>";
+            
+            this.updateSyntax();
+            this.updateLines();
+        }
+
+        updateLines() {
+            const lineCount = this.input.value.split('\n').length;
+            let lineString = '';
+            for (let i = 1; i <= lineCount; i++) {
+                lineString += i + '<br>';
+            }
+            this.lines.innerHTML = lineString;
+        }
+
+        updateSyntax() {
+            let code = this.input.value;
+            
+            // Step 1: Escape HTML to prevent accidental DOM execution in the highlight layer
+            code = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            
+            // Step 2: Apply Custom RegEx Syntax Highlighting
+            // Javascript Keywords (Golden Warning color)
+            code = code.replace(/\b(const|let|var|function|return|if|else|for|while|class|new|import|export)\b/g, '<span style="color: var(--warning-color);">$1</span>');
+            
+            // Strings (Success Green color)
+            code = code.replace(/(&quot;.*?&quot;|&#39;.*?&#39;|`.*?`)/g, '<span style="color: var(--success-color);">$1</span>');
+            
+            // HTML Tags and CSS Properties (Error Red color)
+            code = code.replace(/(&lt;\/?[\w\s="/.':;#-\/\?]+&gt;)/g, '<span style="color: var(--error-color);">$1</span>');
+            
+            this.highlight.innerHTML = code;
+        }
+
+        executeCode() {
+            const code = this.input.value;
+            const iframeDoc = this.preview.contentDocument || this.preview.contentWindow.document;
+            
+            // Write the IDE textarea contents directly to the iframe's internal DOM
+            iframeDoc.open();
+            iframeDoc.write(code);
+            iframeDoc.close();
+            
+            // Reward the user for testing code
+            this.hud.addXP(40); 
+            this.hud.toast('COMPILE SUCCESS');
+            this.audio.play('success');
+            
+            // Reset button animation
+            this.runBtn.classList.add('pop');
+            setTimeout(() => this.runBtn.classList.remove('pop'), 200);
+        }
+    }
+
+    // Auto-inject the new app into the running Kernel after DOM paints
+    window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            if (window.OS) {
+                window.OS.CodeSpace = new CodeSpaceApp(window.OS.HUD, window.OS.Audio);
+                // Re-bind the desktop icons so the new Code-Space icon becomes clickable
+                window.OS.WindowManager.bindDesktopIcons();
+            }
+        }, 100);
+    });
+
+    /* =========================================================
+       MODULE 21: MYCO-MAZE 8-BIT ENGINE (HTML INJECTION & UI)
+       ========================================================= */
+    // Inject the Desktop Icon
+    document.getElementById('desktop-environment').insertAdjacentHTML('beforeend', `
+        <div class="desktop-icon interactable" data-launch="app-mycomaze">
+            <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span>MYCO_MAZE</span>
+        </div>
+    `);
+
+    // Inject the App Window
+    document.getElementById('os-window-layer').insertAdjacentHTML('beforeend', `
+    <div class="os-window" id="app-mycomaze" style="width: 640px; height: 540px;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>MYCO_MAZE // 8-BIT_ENGINE</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-mycomaze">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 10px; background: #0a0f0d; display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 100%; display: flex; justify-content: space-between; color: var(--accent-color); font-size: 0.9rem; margin-bottom: 10px; padding: 0 10px;">
+                <span>SPORES: <span id="myco-score">0</span></span>
+                <span id="myco-status">PRESS SPACE TO START</span>
+            </div>
+            <canvas id="myco-canvas" width="600" height="400" style="background: #121815; border: 2px solid var(--border-color); border-radius: 8px; image-rendering: pixelated;"></canvas>
+            <div style="color: var(--border-color); font-size: 0.75rem; margin-top: 10px; text-align: center;">
+                USE [W][A][S][D] OR ARROWS TO EXPAND MYCELIUM. AVOID CONTAMINANTS.
+            </div>
+        </div>
+    </div>
+    `);
+
+    /* =========================================================
+       MODULE 22: MYCO-MAZE LOGIC ENGINE
+       ========================================================= */
+    class MycoMazeApp {
+        constructor(hud, audio) {
+            this.hud = hud;
+            this.audio = audio;
+            
+            this.canvas = document.getElementById('myco-canvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.scoreEl = document.getElementById('myco-score');
+            this.statusEl = document.getElementById('myco-status');
+            
+            // Game Constants
+            this.tileSize = 40;
+            this.cols = this.canvas.width / this.tileSize;
+            this.rows = this.canvas.height / this.tileSize;
+            
+            // Game State
+            this.isPlaying = false;
+            this.animationId = null;
+            this.score = 0;
+            this.keys = {};
+            
+            // Entities
+            this.player = null;
+            this.nutrients = [];
+            this.enemies = [];
+
+            this.initEngine();
+        }
+
+        initEngine() {
+            // Keyboard Listeners
+            window.addEventListener('keydown', (e) => {
+                this.keys[e.key.toLowerCase()] = true;
+                
+                // Start game on spacebar if window is open
+                if (e.code === 'Space' && !this.isPlaying && document.getElementById('app-mycomaze').classList.contains('open')) {
+                    e.preventDefault();
+                    this.startGame();
+                }
+            });
+            
+            window.addEventListener('keyup', (e) => {
+                this.keys[e.key.toLowerCase()] = false;
+            });
+
+            this.drawInitialScreen();
+        }
+
+        startGame() {
+            this.isPlaying = true;
+            this.score = 0;
+            this.scoreEl.innerText = this.score;
+            this.statusEl.innerText = "ASSIMILATING...";
+            this.statusEl.style.color = "var(--success-color)";
+            
+            this.audio.play('spawn');
+
+            // Initialize Player (Mycelium Spore)
+            this.player = {
+                x: Math.floor(this.cols / 2) * this.tileSize,
+                y: Math.floor(this.rows / 2) * this.tileSize,
+                size: this.tileSize * 0.8,
+                speed: 4,
+                vx: 0,
+                vy: 0
+            };
+
+            // Spawn Initial Entities
+            this.nutrients = [];
+            this.enemies = [];
+            for(let i=0; i<3; i++) this.spawnNutrient();
+            for(let i=0; i<2; i++) this.spawnEnemy();
+
+            // Start hardware loop
+            if (this.animationId) cancelAnimationFrame(this.animationId);
+            this.gameLoop();
+        }
+
+        spawnNutrient() {
+            this.nutrients.push({
+                x: Math.floor(Math.random() * this.cols) * this.tileSize + (this.tileSize * 0.25),
+                y: Math.floor(Math.random() * this.rows) * this.tileSize + (this.tileSize * 0.25),
+                size: this.tileSize * 0.5
+            });
+        }
+
+        spawnEnemy() {
+            let ex, ey;
+            // Ensure enemies don't spawn exactly on the player
+            do {
+                ex = Math.floor(Math.random() * this.cols) * this.tileSize;
+                ey = Math.floor(Math.random() * this.rows) * this.tileSize;
+            } while (Math.abs(ex - this.player.x) < this.tileSize * 2 && Math.abs(ey - this.player.y) < this.tileSize * 2);
+
+            this.enemies.push({
+                x: ex,
+                y: ey,
+                size: this.tileSize * 0.7,
+                vx: (Math.random() > 0.5 ? 2 : -2),
+                vy: (Math.random() > 0.5 ? 2 : -2)
+            });
+        }
+
+        update() {
+            if (!this.isPlaying) return;
+
+            // 1. Player Smooth Movement Mechanics
+            this.player.vx = 0;
+            this.player.vy = 0;
+            if (this.keys['w'] || this.keys['arrowup']) this.player.vy = -this.player.speed;
+            if (this.keys['s'] || this.keys['arrowdown']) this.player.vy = this.player.speed;
+            if (this.keys['a'] || this.keys['arrowleft']) this.player.vx = -this.player.speed;
+            if (this.keys['d'] || this.keys['arrowright']) this.player.vx = this.player.speed;
+
+            this.player.x += this.player.vx;
+            this.player.y += this.player.vy;
+
+            // Screen bounds
+            this.player.x = SYS_MATH.clamp(this.player.x, 0, this.canvas.width - this.player.size);
+            this.player.y = SYS_MATH.clamp(this.player.y, 0, this.canvas.height - this.player.size);
+
+            // 2. Enemy AI (Bouncing)
+            this.enemies.forEach(enemy => {
+                enemy.x += enemy.vx;
+                enemy.y += enemy.vy;
+
+                if (enemy.x <= 0 || enemy.x + enemy.size >= this.canvas.width) enemy.vx *= -1;
+                if (enemy.y <= 0 || enemy.y + enemy.size >= this.canvas.height) enemy.vy *= -1;
+
+                // Collision: Player hits Enemy
+                if (this.checkAABB(this.player, enemy)) {
+                    this.gameOver();
+                }
+            });
+
+            // 3. Collision: Player collects Nutrient (Golden Ratio Nodes)
+            for (let i = this.nutrients.length - 1; i >= 0; i--) {
+                let nut = this.nutrients[i];
+                if (this.checkAABB(this.player, nut)) {
+                    this.nutrients.splice(i, 1);
+                    this.score += 10;
+                    this.scoreEl.innerText = this.score;
+                    this.audio.play('click');
+                    
+                    // Add OS XP
+                    this.hud.addXP(5);
+                    
+                    this.spawnNutrient();
+                    // Every 50 points, spawn a new enemy to increase difficulty
+                    if (this.score % 50 === 0) this.spawnEnemy();
+                }
+            }
+        }
+
+        draw() {
+            // Clear Canvas
+            this.ctx.fillStyle = '#121815';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // Draw Grid (8-bit aesthetic)
+            this.ctx.strokeStyle = '#1e2b25';
+            this.ctx.lineWidth = 1;
+            for (let i = 0; i < this.canvas.width; i += this.tileSize) {
+                this.ctx.beginPath(); this.ctx.moveTo(i, 0); this.ctx.lineTo(i, this.canvas.height); this.ctx.stroke();
+            }
+            for (let i = 0; i < this.canvas.height; i += this.tileSize) {
+                this.ctx.beginPath(); this.ctx.moveTo(0, i); this.ctx.lineTo(this.canvas.width, i); this.ctx.stroke();
+            }
+
+            if (!this.isPlaying && this.score === 0) {
+                this.drawInitialScreen();
+                return;
+            }
+
+            // Draw Nutrients (Gold)
+            this.ctx.fillStyle = 'var(--warning-color)';
+            this.nutrients.forEach(nut => {
+                this.ctx.fillRect(nut.x, nut.y, nut.size, nut.size);
+            });
+
+            // Draw Enemies (Red)
+            this.ctx.fillStyle = 'var(--error-color)';
+            this.enemies.forEach(enemy => {
+                this.ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+            });
+
+            // Draw Player (Mycelium Organic Green)
+            this.ctx.fillStyle = 'var(--accent-color)';
+            this.ctx.fillRect(this.player.x, this.player.y, this.player.size, this.player.size);
+            // Inner core
+            this.ctx.fillStyle = 'var(--bg-color)';
+            this.ctx.fillRect(this.player.x + 4, this.player.y + 4, this.player.size - 8, this.player.size - 8);
+        }
+
+        drawInitialScreen() {
+            this.ctx.fillStyle = '#121815';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.fillStyle = 'var(--accent-color)';
+            this.ctx.font = '20px var(--font-mono)';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('AWAITING SPACEBAR IGNITION', this.canvas.width / 2, this.canvas.height / 2);
+            this.ctx.textAlign = 'left'; // reset
+        }
+
+        gameLoop() {
+            if (!this.isPlaying) return;
+            this.update();
+            this.draw();
+            this.animationId = requestAnimationFrame(() => this.gameLoop());
+        }
+
+        checkAABB(rect1, rect2) {
+            return (
+                rect1.x < rect2.x + rect2.size &&
+                rect1.x + rect1.size > rect2.x &&
+                rect1.y < rect2.y + rect2.size &&
+                rect1.y + rect1.size > rect2.y
+            );
+        }
+
+        gameOver() {
+            this.isPlaying = false;
+            this.audio.play('error');
+            this.statusEl.innerText = "CONTAMINATION DETECTED. PRESS SPACE TO RETRY.";
+            this.statusEl.style.color = "var(--error-color)";
+            
+            // Draw Game Over Overlay
+            this.ctx.fillStyle = 'rgba(217, 83, 79, 0.2)';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            
+            this.hud.toast(`NETWORK SEVERED. SCORE: ${this.score}`);
+        }
+    }
+
+    // Auto-inject the new engine into the running Kernel
+    window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            if (window.OS) {
+                window.OS.MycoMaze = new MycoMazeApp(window.OS.HUD, window.OS.Audio);
+                window.OS.WindowManager.bindDesktopIcons();
+            }
+        }, 150);
+    });
+
+    /* =========================================================
+       MODULE 23: AUDIO VISUALIZER (HTML INJECTION & UI)
+       ========================================================= */
+    // Inject the Desktop Icon
+    document.getElementById('desktop-environment').insertAdjacentHTML('beforeend', `
+        <div class="desktop-icon interactable" data-launch="app-visualizer">
+            <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5v14M7 9v6M22 9v6M2 9v6"/></svg>
+            <span>VIBE_VIZ</span>
+        </div>
+    `);
+
+    // Inject the App Window
+    document.getElementById('os-window-layer').insertAdjacentHTML('beforeend', `
+    <div class="os-window" id="app-visualizer" style="width: 500px; height: 550px;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>GOLDEN_RATIO // AUDIO_VIZ</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-visualizer">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 0; background: #0a0f0d; display: flex; flex-direction: column;">
+            
+            <div style="flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                <canvas id="viz-canvas" width="500" height="400"></canvas>
+                <div id="viz-idle-text" style="position: absolute; color: var(--accent-color); font-size: 0.85rem; opacity: 0.5; pointer-events: none;">
+                    AWAITING AUDIO STREAM
+                </div>
+            </div>
+
+            <div style="padding: 15px; border-top: 2px solid var(--border-color); background: var(--window-bg); display: flex; flex-direction: column; gap: 10px;">
+                <input type="file" id="viz-file-upload" accept="audio/*" style="display: none;">
+                <div class="grid-2">
+                    <button class="os-btn interactable" id="btn-viz-upload" style="font-size: 0.75rem;">LOAD TRACK</button>
+                    <button class="os-btn interactable" id="btn-viz-play" style="font-size: 0.75rem;">PLAY / PAUSE</button>
+                </div>
+                <audio id="viz-audio-element" style="display: none;"></audio>
+                <div id="viz-track-name" style="text-align: center; font-size: 0.75rem; color: var(--text-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    NO TRACK SELECTED
+                </div>
+            </div>
+        </div>
+    </div>
+    `);
+
+    /* =========================================================
+       MODULE 24: AUDIO VISUALIZER LOGIC ENGINE
+       ========================================================= */
+    class AudioVisualizerApp {
+        constructor(hud, sysAudio) {
+            this.hud = hud;
+            this.sysAudio = sysAudio; // The OS audio context from Module 5
+            
+            this.canvas = document.getElementById('viz-canvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.fileInput = document.getElementById('viz-file-upload');
+            this.uploadBtn = document.getElementById('btn-viz-upload');
+            this.playBtn = document.getElementById('btn-viz-play');
+            this.audioElement = document.getElementById('viz-audio-element');
+            this.trackName = document.getElementById('viz-track-name');
+            this.idleText = document.getElementById('viz-idle-text');
+            
+            this.audioCtx = null;
+            this.analyser = null;
+            this.source = null;
+            this.dataArray = null;
+            this.bufferLength = null;
+            this.animationId = null;
+            
+            this.isPlaying = false;
+            this.isInitialized = false;
+            
+            this.initControls();
+        }
+
+        initControls() {
+            // Trigger hidden file input
+            this.uploadBtn.addEventListener('click', () => {
+                this.fileInput.click();
+            });
+
+            // Handle file selection
+            this.fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const objectUrl = URL.createObjectURL(file);
+                    this.audioElement.src = objectUrl;
+                    this.trackName.innerText = `TRACK: ${file.name.toUpperCase()}`;
+                    this.idleText.style.display = 'none';
+                    
+                    if (!this.isInitialized) this.initAudioContext();
+                    
+                    this.hud.toast('AUDIO LOADED. XP GENERATOR ACTIVE.');
+                    this.sysAudio.play('success');
+                }
+            });
+
+            // Play/Pause toggle
+            this.playBtn.addEventListener('click', () => {
+                if (!this.audioElement.src) {
+                    this.hud.toast('ERR: LOAD TRACK FIRST');
+                    this.sysAudio.play('error');
+                    return;
+                }
+                
+                if (this.audioCtx && this.audioCtx.state === 'suspended') {
+                    this.audioCtx.resume();
+                }
+
+                if (this.audioElement.paused) {
+                    this.audioElement.play();
+                    this.isPlaying = true;
+                    this.sysAudio.play('spawn');
+                    this.drawVisualizer(); // Start loop
+                } else {
+                    this.audioElement.pause();
+                    this.isPlaying = false;
+                    cancelAnimationFrame(this.animationId);
+                }
+            });
+
+            // Handle track end
+            this.audioElement.addEventListener('ended', () => {
+                this.isPlaying = false;
+                cancelAnimationFrame(this.animationId);
+                this.hud.addXP(250); // Reward for listening to a full track
+                this.hud.toast('TRACK FINISHED. +250 XP');
+            });
+        }
+
+        initAudioContext() {
+            // Create a dedicated audio context for the visualizer to avoid overlapping the OS synth
+            this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            this.analyser = this.audioCtx.createAnalyser();
+            
+            this.source = this.audioCtx.createMediaElementSource(this.audioElement);
+            this.source.connect(this.analyser);
+            this.analyser.connect(this.audioCtx.destination);
+            
+            // Fast Fourier Transform size (higher = more detailed bars)
+            this.analyser.fftSize = 256;
+            this.bufferLength = this.analyser.frequencyBinCount;
+            this.dataArray = new Uint8Array(this.bufferLength);
+            
+            this.isInitialized = true;
+        }
+
+        drawVisualizer() {
+            if (!this.isPlaying) return;
+            this.animationId = requestAnimationFrame(() => this.drawVisualizer());
+
+            this.analyser.getByteFrequencyData(this.dataArray);
+
+            this.ctx.fillStyle = '#0a0f0d'; // Clear background
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+            const centerX = this.canvas.width / 2;
+            const centerY = this.canvas.height / 2;
+            
+            // Golden ratio parameters
+            const phi = 1.61803398875;
+            const radius = 50 * phi; // Base radius for the circle
+            
+            // Draw Radial Waveform
+            for (let i = 0; i < this.bufferLength; i++) {
+                // Map the frequency to a bar height, multiplied by Phi for dramatic spikes
+                const barHeight = (this.dataArray[i] / 2) * phi;
+                
+                // Distribute bars evenly around 360 degrees
+                const rads = (Math.PI * 2) / this.bufferLength;
+                const angle = i * rads;
+                
+                // Calculate start and end points using trigonometry
+                const x1 = centerX + Math.cos(angle) * radius;
+                const y1 = centerY + Math.sin(angle) * radius;
+                const x2 = centerX + Math.cos(angle) * (radius + barHeight);
+                const y2 = centerY + Math.sin(angle) * (radius + barHeight);
+                
+                // Interpolate colors based on frequency index
+                const hue = 80 + (i / this.bufferLength) * 40; // Greenish/Yellowish hues
+                const isDark = document.body.classList.contains('dark-mode');
+                
+                this.ctx.strokeStyle = isDark ? `hsla(${hue}, 40%, 60%, 0.8)` : `hsla(${hue}, 30%, 40%, 0.8)`;
+                this.ctx.lineWidth = 2 * phi;
+                this.ctx.lineCap = 'round';
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(x1, y1);
+                this.ctx.lineTo(x2, y2);
+                this.ctx.stroke();
+            }
+
+            // Draw Inner Core (pulses to the bass)
+            const bassAvg = (this.dataArray[0] + this.dataArray[1] + this.dataArray[2]) / 3;
+            const coreRadius = (radius - 10) + (bassAvg / 10);
+            
+            this.ctx.beginPath();
+            this.ctx.arc(centerX, centerY, coreRadius, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'var(--accent-color)';
+            this.ctx.fill();
+            
+            // Draw inner-inner core to make it look hollow
+            this.ctx.beginPath();
+            this.ctx.arc(centerX, centerY, coreRadius / phi, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'var(--bg-color)';
+            this.ctx.fill();
+            
+            // Passive XP generation while vibing
+            if (Math.random() > 0.99) {
+                this.hud.addXP(1); // Small, constant drip of XP
+            }
+        }
+    }
+
+    // Auto-inject the Visualizer into the running Kernel
+    window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            if (window.OS) {
+                window.OS.AudioVisualizer = new AudioVisualizerApp(window.OS.HUD, window.OS.Audio);
+                window.OS.WindowManager.bindDesktopIcons();
+            }
+        }, 200);
+    });
+
+    /* =========================================================
+       MODULE 25: NET_STAT PACKET SNIFFER (HTML INJECTION)
+       ========================================================= */
+    // Inject the Desktop Icon
+    document.getElementById('desktop-environment').insertAdjacentHTML('beforeend', `
+        <div class="desktop-icon interactable" data-launch="app-netstat">
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            <span>NET_STAT</span>
+        </div>
+    `);
+
+    // Inject the App Window
+    document.getElementById('os-window-layer').insertAdjacentHTML('beforeend', `
+    <div class="os-window" id="app-netstat" style="width: 700px; height: 450px; max-width: 95vw;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>NET_STAT // PACKET_SNIFFER</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-netstat">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 0; display: flex; flex-direction: column; background: var(--text-color);">
+            
+            <div style="display: flex; gap: 10px; padding: 15px; background: var(--window-bg); border-bottom: 2px solid var(--border-color);">
+                <input type="text" id="ping-target" class="os-input interactable" value="192.168.1.1" style="flex: 1; font-family: var(--font-mono);">
+                <button class="os-btn interactable" id="btn-ping-send" style="background: var(--accent-color); color: var(--bg-color);">PING_TARGET</button>
+            </div>
+
+            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.1); overflow: hidden;">
+                <div style="padding: 5px 15px; font-size: 0.8rem; background: rgba(0,0,0,0.3); color: var(--accent-color); display: flex; justify-content: space-between;">
+                    <span>LIVE_TRAFFIC_LOG</span>
+                    <span id="active-nodes" style="color: var(--success-color);">NODES: 0</span>
+                </div>
+                <div id="net-traffic-log" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--bg-color);">
+                    <div style="opacity: 0.5;">> Listening on port 8080...</div>
+                </div>
+            </div>
+
+            <div style="padding: 10px 15px; background: var(--bg-color); color: var(--text-color); font-size: 0.8rem; border-top: 2px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <div>STATUS: <span id="sniffer-status" style="color: var(--warning-color);">IDLE</span></div>
+                <button class="os-btn interactable" id="btn-toggle-sniff" style="padding: 4px 10px; font-size: 0.75rem;">START_SNIFF</button>
+            </div>
+        </div>
+    </div>
+    `);
+
+    /* =========================================================
+       MODULE 26: NET_STAT LOGIC ENGINE
+       ========================================================= */
+    class NetStatApp {
+        constructor(hud, audio) {
+            this.hud = hud;
+            this.audio = audio;
+            
+            // DOM Elements
+            this.targetInput = document.getElementById('ping-target');
+            this.pingBtn = document.getElementById('btn-ping-send');
+            this.trafficLog = document.getElementById('net-traffic-log');
+            this.nodesDisplay = document.getElementById('active-nodes');
+            this.statusDisplay = document.getElementById('sniffer-status');
+            this.sniffBtn = document.getElementById('btn-toggle-sniff');
+            
+            this.isSniffing = false;
+            this.sniffInterval = null;
+            this.activeNodes = 0;
+            
+            this.initNetStat();
+        }
+
+        initNetStat() {
+            this.pingBtn.addEventListener('click', () => this.sendPing());
+            this.sniffBtn.addEventListener('click', () => this.toggleSniffer());
+        }
+
+        generateIP() {
+            return `${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}.${Math.floor(Math.random()*255)}`;
+        }
+
+        logTraffic(message, color = "var(--bg-color)") {
+            const entry = document.createElement('div');
+            entry.style.color = color;
+            entry.innerText = `[${new Date().toLocaleTimeString()}] ${message}`;
+            this.trafficLog.appendChild(entry);
+            
+            // Keep log from getting too massive
+            if (this.trafficLog.children.length > 50) {
+                this.trafficLog.removeChild(this.trafficLog.firstChild);
+            }
+            
+            this.trafficLog.scrollTop = this.trafficLog.scrollHeight;
+        }
+
+        sendPing() {
+            const target = this.targetInput.value.trim();
+            if (!target) return;
+
+            this.audio.play('click');
+            this.logTraffic(`Pinging ${target} with 32 bytes of data...`, 'var(--warning-color)');
+            
+            setTimeout(() => {
+                const success = Math.random() > 0.2;
+                if (success) {
+                    const time = Math.floor(Math.random() * 50) + 10;
+                    this.logTraffic(`Reply from ${target}: bytes=32 time=${time}ms TTL=54`, 'var(--success-color)');
+                    this.audio.play('success');
+                    this.hud.addXP(10);
+                } else {
+                    this.logTraffic(`Request timed out.`, 'var(--error-color)');
+                    this.audio.play('error');
+                }
+            }, 800);
+        }
+
+        toggleSniffer() {
+            this.isSniffing = !this.isSniffing;
+            
+            if (this.isSniffing) {
+                this.sniffBtn.innerText = "STOP_SNIFF";
+                this.sniffBtn.style.background = "var(--error-color)";
+                this.statusDisplay.innerText = "INTERCEPTING";
+                this.statusDisplay.style.color = "var(--success-color)";
+                this.audio.play('spawn');
+                
+                this.sniffInterval = setInterval(() => {
+                    this.activeNodes = Math.floor(Math.random() * 15) + 1;
+                    this.nodesDisplay.innerText = `NODES: ${this.activeNodes}`;
+                    
+                    const ip = this.generateIP();
+                    const port = Math.floor(Math.random() * 8000) + 80;
+                    const size = Math.floor(Math.random() * 1500) + 64;
+                    
+                    // 10% chance to intercept a "secure" packet for bonus XP
+                    if (Math.random() > 0.9) {
+                        this.logTraffic(`SECURE PACKET INTERCEPTED: ${ip}:${port} [${size}b]`, 'var(--accent-color)');
+                        this.hud.addXP(25);
+                        this.audio.play('success');
+                    } else {
+                        this.logTraffic(`SRC: ${ip}:${port} -> DEST: localhost [${size}b]`);
+                    }
+                }, 1200);
+            } else {
+                this.sniffBtn.innerText = "START_SNIFF";
+                this.sniffBtn.style.background = "var(--window-bg)";
+                this.statusDisplay.innerText = "IDLE";
+                this.statusDisplay.style.color = "var(--warning-color)";
+                clearInterval(this.sniffInterval);
+                this.nodesDisplay.innerText = `NODES: 0`;
+                this.audio.play('close');
+            }
+        }
+    }
+
+    // Auto-inject the NetStat tool into the Kernel
+    window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            if (window.OS) {
+                window.OS.NetStat = new NetStatApp(window.OS.HUD, window.OS.Audio);
+                window.OS.WindowManager.bindDesktopIcons();
+            }
+        }, 250);
+    });
+
+    /* =========================================================
+       MODULE 27: SYS_MONITOR (HTML INJECTION)
+       ========================================================= */
+    // Inject the Desktop Icon
+    document.getElementById('desktop-environment').insertAdjacentHTML('beforeend', `
+        <div class="desktop-icon interactable" data-launch="app-sysmonitor">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            <span>SYS_MONITOR</span>
+        </div>
+    `);
+
+    // Inject the App Window
+    document.getElementById('os-window-layer').insertAdjacentHTML('beforeend', `
+    <div class="os-window" id="app-sysmonitor" style="width: 600px; height: 500px; max-width: 95vw;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>SYS_MONITOR // TASK_MGR</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-sysmonitor">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 15px; display: flex; flex-direction: column; background: var(--text-color); gap: 15px;">
+            
+            <div class="grid-2">
+                <div class="status-box" style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--bg-color);">
+                        <span>CPU_USAGE</span>
+                        <span id="mon-cpu-txt">0%</span>
+                    </div>
+                    <div style="width: 100%; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; overflow: hidden;">
+                        <div id="mon-cpu-bar" style="height: 100%; width: 0%; background: var(--accent-color); transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+                
+                <div class="status-box" style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--bg-color);">
+                        <span>MEM_ALLOC</span>
+                        <span id="mon-ram-txt">0MB / 8192MB</span>
+                    </div>
+                    <div style="width: 100%; height: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; overflow: hidden;">
+                        <div id="mon-ram-bar" style="height: 100%; width: 0%; background: var(--warning-color); transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.2); border: 2px solid var(--border-color); border-radius: 10px; overflow: hidden;">
+                <div style="display: flex; justify-content: space-between; padding: 10px 15px; background: rgba(0,0,0,0.3); color: var(--accent-color); font-size: 0.8rem; border-bottom: 2px solid var(--border-color);">
+                    <span style="flex: 2;">PROCESS_NAME</span>
+                    <span style="flex: 1; text-align: right;">PID</span>
+                    <span style="flex: 1; text-align: right;">MEM</span>
+                    <span style="flex: 1; text-align: right;">ACTION</span>
+                </div>
+                <div id="mon-process-list" style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 5px;">
+                    </div>
+            </div>
+        </div>
+    </div>
+    `);
+
+    /* =========================================================
+       MODULE 28: SYS_MONITOR LOGIC ENGINE
+       ========================================================= */
+    class SysMonitorApp {
+        constructor(hud, audio) {
+            this.hud = hud;
+            this.audio = audio;
+            
+            // DOM Elements
+            this.cpuTxt = document.getElementById('mon-cpu-txt');
+            this.cpuBar = document.getElementById('mon-cpu-bar');
+            this.ramTxt = document.getElementById('mon-ram-txt');
+            this.ramBar = document.getElementById('mon-ram-bar');
+            this.processList = document.getElementById('mon-process-list');
+            
+            this.updateInterval = null;
+            this.processes = [];
+            this.totalRam = 8192;
+            
+            this.initMonitor();
+        }
+
+        initMonitor() {
+            // Generate initial dummy processes
+            const names = ['kernel.sys', 'dwm.exe', 'vfs_daemon', 'mycelium_bg', 'audio_host', 'net_stat', 'idle_process', 'crypto_miner.exe'];
+            
+            names.forEach((name, i) => {
+                this.processes.push({
+                    id: i,
+                    name: name,
+                    pid: Math.floor(Math.random() * 9000) + 1000,
+                    mem: Math.floor(Math.random() * 500) + 10,
+                    isRogue: name === 'crypto_miner.exe'
+                });
+            });
+
+            this.renderProcesses();
+            
+            // Hook into window open/close to save resources when closed
+            const win = document.getElementById('app-sysmonitor');
+            const observer = new MutationObserver((mutations) => {
+                mutations.forEach((mutation) => {
+                    if (mutation.attributeName === 'class') {
+                        if (win.classList.contains('open')) {
+                            this.startMonitoring();
+                        } else {
+                            this.stopMonitoring();
+                        }
+                    }
+                });
+            });
+            observer.observe(win, { attributes: true });
+        }
+
+        startMonitoring() {
+            if (this.updateInterval) clearInterval(this.updateInterval);
+            
+            this.updateInterval = setInterval(() => {
+                // Fluctuate CPU
+                const cpuUsage = Math.floor(Math.random() * 40) + 10 + (this.processes.length * 2);
+                this.cpuTxt.innerText = `${cpuUsage}%`;
+                this.cpuBar.style.width = `${cpuUsage}%`;
+                
+                // CPU Color warning
+                if (cpuUsage > 80) this.cpuBar.style.background = 'var(--error-color)';
+                else if (cpuUsage > 50) this.cpuBar.style.background = 'var(--warning-color)';
+                else this.cpuBar.style.background = 'var(--accent-color)';
+
+                // Calculate RAM
+                let currentRam = this.processes.reduce((acc, curr) => acc + curr.mem, 0);
+                // Add some random fluctuation
+                currentRam += Math.floor(Math.random() * 200) - 100;
+                
+                const ramPercent = (currentRam / this.totalRam) * 100;
+                this.ramTxt.innerText = `${currentRam}MB / ${this.totalRam}MB`;
+                this.ramBar.style.width = `${ramPercent}%`;
+                
+                // Randomly spawn rogue processes
+                if (Math.random() > 0.95 && this.processes.length < 15) {
+                    this.processes.push({
+                        id: Date.now(),
+                        name: `unknown_${Math.floor(Math.random()*999)}.exe`,
+                        pid: Math.floor(Math.random() * 9000) + 1000,
+                        mem: Math.floor(Math.random() * 800) + 100,
+                        isRogue: true
+                    });
+                    this.renderProcesses();
+                }
+
+            }, 1000);
+        }
+
+        stopMonitoring() {
+            clearInterval(this.updateInterval);
+        }
+
+        renderProcesses() {
+            this.processList.innerHTML = '';
+            
+            // Sort by memory usage descending
+            this.processes.sort((a, b) => b.mem - a.mem).forEach(proc => {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+                row.style.padding = '8px 10px';
+                row.style.background = 'rgba(255,255,255,0.05)';
+                row.style.borderRadius = '5px';
+                row.style.fontSize = '0.8rem';
+                row.style.color = proc.isRogue ? 'var(--warning-color)' : 'var(--bg-color)';
+
+                row.innerHTML = `
+                    <span style="flex: 2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${proc.name}</span>
+                    <span style="flex: 1; text-align: right; opacity: 0.7;">${proc.pid}</span>
+                    <span style="flex: 1; text-align: right;">${proc.mem}M</span>
+                    <div style="flex: 1; text-align: right;">
+                        <button class="os-btn interactable" style="padding: 4px 8px; font-size: 0.65rem; border-color: var(--error-color); color: var(--error-color); background: transparent;">KILL</button>
+                    </div>
+                `;
+
+                const killBtn = row.querySelector('button');
+                killBtn.addEventListener('click', () => this.killProcess(proc.id));
+
+                this.processList.appendChild(row);
+            });
+            
+            if (window.OS && window.OS.Cursor) window.OS.Cursor.refreshInteractions();
+        }
+
+        killProcess(id) {
+            const procIndex = this.processes.findIndex(p => p.id === id);
+            if (procIndex > -1) {
+                const proc = this.processes[procIndex];
+                
+                // Can't kill kernel
+                if (proc.name === 'kernel.sys') {
+                    this.hud.toast('ACCESS DENIED: SYSTEM CRITICAL');
+                    this.audio.play('error');
+                    return;
+                }
+
+                this.processes.splice(procIndex, 1);
+                this.renderProcesses();
+                this.audio.play('close');
+                
+                // Reward for killing rogue processes
+                if (proc.isRogue) {
+                    this.hud.addXP(40);
+                    this.hud.toast(`ROGUE PROCESS TERMINATED. +40 XP`);
+                    this.audio.play('success');
+                }
+            }
+        }
+    }
+
+    // Auto-inject the Monitor into the Kernel
+    window.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            if (window.OS) {
+                window.OS.SysMonitor = new SysMonitorApp(window.OS.HUD, window.OS.Audio);
+                window.OS.WindowManager.bindDesktopIcons();
+            }
+        }, 300);
+    });
+
+</script>
+</body>
+</html>
