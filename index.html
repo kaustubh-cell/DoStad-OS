@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudyOS - made by K8BH</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="cursor-dot"></div>
+<div id="cursor-ring"></div>
+
+<canvas id="mycelium-canvas"></canvas>
+<div class="crt-scanline"></div>
+
+<div id="sys-xp-bar"><div id="sys-xp-fill"></div></div>
+<div class="toast-container" id="sys-notifications"></div>
+
+<div id="boot-screen">
+    <div class="boot-header">
+        <div class="boot-title">StudyOS by K8BH</div>
+        <div class="boot-subtitle">A peaceful space to focus and learn.</div>
+    </div>
+    
+    <button class="os-btn interactable" id="btn-init-kernel" style="margin-top: 40px; font-size: 0.8rem; letter-spacing: 2px;">Enter Workspace</button>
+    
+    <div class="boot-bar-container" id="boot-progress-wrap">
+        <div class="boot-bar-fill" id="boot-progress-fill"></div>
+    </div>
+    <div id="boot-terminal-log"></div>
+</div>
+
+<div id="desktop-environment">
+    <div id="widget-clock" style="position: absolute; top: 40px; right: 50px; font-size: 3.5rem; font-family: var(--font-mono); color: var(--text-color); opacity: 0.15; pointer-events: none; z-index: 1;">
+        00:00:00
+    </div>
+    <div id="widget-notes" class="interactable" style="position: absolute; top: 140px; right: 50px; width: 320px; background: rgba(255,255,255,0.05); border-left: 3px solid var(--accent-color); padding: 15px; z-index: 2; backdrop-filter: blur(5px);">
+        <div style="font-size: 1.85rem; color: var(--accent-color); margin-bottom: 8px; text-transform: none;">Jot down your thoughts</div>
+        <textarea id="widget-notes-input" spellcheck="false" placeholder="What's on your mind?" style="width: 300px; height: 300px; background: transparent; border: none; color: var(--text-color); font-family: var(--font-main); font-size: 0.8rem; resize: none; outline: none;"></textarea>
+    </div>
+
+    <div class="desktop-icon interactable" data-launch="app-terminal">
+        <svg viewBox="0 0 35 24"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+        <span>Terminal</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-market">
+        <svg viewBox="0 0 24 24"><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        <span>Discover</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-codespace">
+        <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        <span>Editor</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-sysmonitor">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        <span>Monitor</span>
+    </div>
+
+    <div class="desktop-icon interactable" data-launch="app-quests">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>
+        <span>Tasks</span>
+    </div>
+    <div class="desktop-icon interactable locked" id="icon-bugfixer" data-launch="app-bugfixer">
+        <svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <span>Notes</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-mycomaze">
+        <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>Minigame</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-fractal">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 22h20L12 2z"/><path d="M12 10l-4 8h8l-4-8z"/></svg>
+        <span>Visuals</span>
+    </div>
+
+    <div class="desktop-icon interactable" data-launch="app-vfs">
+        <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span>Journal</span>
+    </div>
+    <div class="desktop-icon interactable locked" id="icon-flexcss" data-launch="app-flexcss">
+        <svg viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"/></svg>
+        <span>Layouts</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-visualizer">
+        <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5v14M7 9v6M22 9v6M2 9v6"/></svg>
+        <span>Player</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-sonic">
+        <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5v14M7 9v6M22 9v6M2 9v6"/></svg>
+        <span>Ambient</span>
+    </div>
+
+    <div class="desktop-icon interactable" data-launch="app-heist">
+        <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Timer</span>
+    </div>
+    <div class="desktop-icon interactable locked" id="icon-typer" data-launch="app-typer">
+        <svg viewBox="0 0 24 24"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+        <span>Typing</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-netstat">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+        <span>Network</span>
+    </div>
+    <div class="desktop-icon interactable" data-launch="app-prana">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>
+        <span>Breathe</span>
+    </div>
+</div>
+
+<div id="system-bot" class="interactable window-drag-handle" style="transform: translate3d(calc(100vw - 100px), calc(100vh - 140px), 0);">
+    <div class="bot-speech-bubble" id="bot-bubble">Welcome back. Take your time today.</div>
+    <svg viewBox="0 0 100 100" style="width:60px; height:60px; filter:drop-shadow(4px 4px 0 var(--border-color));">
+        <rect x="20" y="25" width="60" height="60" rx="15" fill="var(--window-bg)" stroke="var(--border-color)" stroke-width="3"/>
+        <circle cx="50" cy="50" r="14" fill="var(--bg-color)" stroke="var(--border-color)" stroke-width="3"/>
+        <circle cx="50" cy="50" r="5" fill="var(--text-color)"/>
+    </svg>
+</div>
+
+<div id="taskbar">
+    <div class="taskbar-group">
+        <button class="os-btn interactable" id="btn-theme-toggle" style="padding: 8px 16px; font-size: 0.75rem;">Toggle Theme</button>
+    </div>
+    <div class="taskbar-group">
+        <div class="hud-element" id="hud-level" style="color: var(--accent-color);">Level: 01</div>
+        <div class="hud-element hud-xp-box" id="hud-xp">Focus Points: 0000</div>
+        <div class="hud-element" id="hud-clock" style="font-size: 1.1rem;">00:00</div>
+    </div>
+</div>
+
+<div id="os-window-layer">
+    <div class="os-window" id="app-terminal">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Command Terminal</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-terminal">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 0; background: var(--text-color);">
+            <div class="terminal-container">
+                <div class="terminal-output" id="term-out">
+                    <div style="color: var(--accent-color);">[Terminal Initialized]</div>
+                    <div>Type 'help' to see a list of commands.</div>
+                </div>
+                <div class="terminal-input-line">
+                    <span style="color: var(--accent-color);">user@studyos:~#</span>
+                    <input type="text" class="terminal-input-field interactable" id="term-input" autocomplete="off" spellcheck="false" autofocus>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-quests">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Today's Tasks</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-quests">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="grid-2" style="grid-template-columns: 3fr 1fr;">
+                <input type="text" id="quest-input-field" class="os-input interactable" placeholder="What do you need to get done?">
+                <button class="os-btn interactable" id="btn-add-quest">Add Task</button>
+            </div>
+            <div id="quest-list-container" style="display:flex; flex-direction:column; gap:10px; margin-top: 10px;"></div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-vfs">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Journal Entries</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-vfs">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" id="vfs-current-path" style="padding: 10px; text-align: left; font-size: 0.8rem; font-family: var(--font-mono); color: var(--accent-color);">
+                Path: /home/journal/
+            </div>
+            <div id="vfs-file-grid" style="display: flex; flex-direction: column; gap: 8px; margin-top: 5px;"></div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-heist">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Focus Timer</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-heist">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" id="heist-timer-display" style="font-size: calc(2rem * var(--phi)); letter-spacing: 2px; font-family: var(--font-mono);">
+                00:00
+            </div>
+            <div class="grid-2" id="heist-controls">
+                <input type="number" id="heist-duration" class="os-input interactable" value="25" min="1" max="120" title="Minutes">
+                <button class="os-btn interactable" id="btn-start-heist">Start Timer</button>
+            </div>
+            <div id="heist-status" style="text-align: center; font-size: 0.75rem; margin-top: 10px; color: var(--warning-color);">
+                Tip: Try to stay on this screen until the timer ends.
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-market" style="width: 700px;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Discover Apps</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-market">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div id="market-grid" class="grid-3" style="gap: 15px;"></div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-bugfixer">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Clear Mind</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-bugfixer">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" id="bug-threat-level">Distractions: 0</div>
+            <div class="grid-3" id="bug-arena" style="margin-top: 10px;"></div>
+            <button class="os-btn interactable" id="btn-scan-bugs" style="margin-top: 10px;">Clear Distractions</button>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-flexcss">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>CSS Sandbox</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-flexcss">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" id="flex-target-name" style="font-size: 1rem;">Goal: Center the square</div>
+            <div class="status-box" id="flex-arena" style="height: 180px; position: relative; display: flex; padding: 0;">
+                <div id="flex-ghost" style="width:40px; height:40px; border: 2px dashed var(--border-color); position: absolute; opacity: 0.5;"></div>
+                <div id="flex-player" style="width:40px; height:40px; background: var(--accent-color); z-index: 2; transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);"></div>
+            </div>
+            <div class="grid-2" id="flex-btn-container" style="margin-top: 10px;"></div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-typer">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Typing Practice</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-typer">X</button>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="status-box" style="text-align: left; font-size: 0.85rem; height: 120px; display: flex; align-items: center; line-height: 1.4;">
+                <span id="typer-target-text" style="opacity: 0.6;"></span>
+            </div>
+            <input type="text" id="typer-input-field" class="os-input interactable" placeholder="Type here..." autocomplete="off" spellcheck="false">
+            <div class="grid-2" style="margin-top: 5px;">
+                <div class="status-box" id="typer-wpm" style="padding: 10px; font-family: var(--font-mono);">WPM: 0</div>
+                <div class="status-box" id="typer-acc" style="padding: 10px; font-family: var(--font-mono);">ACC: 100%</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-codespace" style="width: 800px; height: 500px; max-width: 95vw;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Code Editor</span>
+            <div class="window-controls">
+                <button class="os-btn interactable" id="btn-run-code" style="padding: 4px 12px; font-size: 0.7rem; margin-right: 10px; background: var(--accent-color); color: var(--bg-color);">Run Code</button>
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-codespace">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 0; display: flex; flex-direction: row; overflow: hidden; background: var(--text-color);">
+            <div style="flex: 1; display: flex; position: relative; border-right: 2px solid var(--border-color);">
+                <div id="ide-lines" style="padding: 15px 5px; background: rgba(0,0,0,0.2); color: var(--accent-color); text-align: right; user-select: none; font-size: 0.85rem; line-height: 1.5; font-family: var(--font-mono); width: 45px;">1</div>
+                <div style="position: relative; flex: 1; overflow: hidden;">
+                    <textarea id="ide-input" class="interactable" spellcheck="false" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 15px; border: none; background: transparent; color: transparent; caret-color: var(--bg-color); font-size: 0.85rem; font-family: var(--font-mono); line-height: 1.5; resize: none; z-index: 2; white-space: pre; overflow: auto;"></textarea>
+                    <pre id="ide-highlight" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 15px; border: none; background: transparent; color: var(--bg-color); font-size: 0.85rem; font-family: var(--font-mono); line-height: 1.5; pointer-events: none; z-index: 1; white-space: pre; overflow: hidden;"></pre>
+                </div>
+            </div>
+            <div style="flex: 1; background: var(--bg-color); position: relative;">
+                <iframe id="ide-preview" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-mycomaze" style="width: 640px; height: 540px;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Mushroom Maze</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-mycomaze">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 10px; background: #0a0f0d; display: flex; flex-direction: column; align-items: center;">
+            <div style="width: 100%; display: flex; justify-content: space-between; color: var(--accent-color); font-size: 0.8rem; margin-bottom: 10px; padding: 0 10px;">
+                <span>Score: <span id="myco-score">0</span></span>
+                <span id="myco-status">Press Space to start</span>
+            </div>
+            <canvas id="myco-canvas" width="600" height="400" style="background: #121815; border: 2px solid var(--border-color); border-radius: 8px; image-rendering: pixelated;"></canvas>
+            <div style="color: var(--border-color); font-size: 0.7rem; margin-top: 10px; text-align: center; opacity: 0.6;">
+                Use [W][A][S][D] to move your character.
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-visualizer" style="width: 500px; height: 550px;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Music Player</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-visualizer">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 0; background: #0a0f0d; display: flex; flex-direction: column;">
+            <div style="flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                <canvas id="viz-canvas" width="500" height="400"></canvas>
+                <div id="viz-idle-text" style="position: absolute; color: var(--accent-color); font-size: 0.75rem; opacity: 0.5; pointer-events: none;">
+                    Waiting for an audio file...
+                </div>
+            </div>
+            <div style="padding: 15px; border-top: 2px solid var(--border-color); background: var(--window-bg); display: flex; flex-direction: column; gap: 10px;">
+                <input type="file" id="viz-file-upload" accept="audio/*" style="display: none;">
+                <div class="grid-2">
+                    <button class="os-btn interactable" id="btn-viz-upload" style="font-size: 0.7rem;">Choose File</button>
+                    <button class="os-btn interactable" id="btn-viz-play" style="font-size: 0.7rem;">Play / Pause</button>
+                </div>
+                <audio id="viz-audio-element" style="display: none;"></audio>
+                <div id="viz-track-name" style="text-align: center; font-size: 0.7rem; color: var(--text-color); opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    No track currently playing.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-netstat" style="width: 700px; height: 450px; max-width: 95vw;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Network</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-netstat">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 0; display: flex; flex-direction: column; background: var(--text-color);">
+            <div style="display: flex; gap: 10px; padding: 15px; background: var(--window-bg); border-bottom: 2px solid var(--border-color);">
+                <input type="text" id="ping-target" class="os-input interactable" value="192.168.1.1" style="flex: 1; font-family: var(--font-mono);">
+                <button class="os-btn interactable" id="btn-ping-send" style="background: var(--accent-color); color: var(--bg-color); font-size: 0.75rem;">Send Ping</button>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.1); overflow: hidden;">
+                <div style="padding: 5px 15px; font-size: 0.75rem; background: rgba(0,0,0,0.3); color: var(--accent-color); display: flex; justify-content: space-between; font-family: var(--font-mono);">
+                    <span>Live Signals</span>
+                    <span id="active-nodes" style="color: var(--success-color);">Connections: 0</span>
+                </div>
+                <div id="net-traffic-log" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; font-family: var(--font-mono); color: var(--bg-color);">
+                    <div style="opacity: 0.5;">> Waiting for network activity...</div>
+                </div>
+            </div>
+            <div style="padding: 10px 15px; background: var(--bg-color); color: var(--text-color); font-size: 0.75rem; border-top: 2px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                <div>STATUS: <span id="sniffer-status" style="color: var(--warning-color);">IDLE</span></div>
+                <button class="os-btn interactable" id="btn-toggle-sniff" style="padding: 4px 10px; font-size: 0.7rem;">Start Scan</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-sysmonitor" style="width: 600px; height: 500px; max-width: 95vw;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>System Resources</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-sysmonitor">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 15px; display: flex; flex-direction: column; background: var(--text-color); gap: 15px;">
+            <div class="grid-2">
+                <div class="status-box" style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--bg-color);">
+                        <span>CPU Usage</span>
+                        <span id="mon-cpu-txt" style="font-family: var(--font-mono);">0%</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow: hidden;">
+                        <div id="mon-cpu-bar" style="height: 100%; width: 0%; background: var(--accent-color); transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+                <div class="status-box" style="padding: 15px; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--bg-color);">
+                        <span>Memory Usage</span>
+                        <span id="mon-ram-txt" style="font-family: var(--font-mono);">0MB</span>
+                    </div>
+                    <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow: hidden;">
+                        <div id="mon-ram-bar" style="height: 100%; width: 0%; background: var(--warning-color); transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+            </div>
+            <div style="flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.2); border: 2px solid var(--border-color); border-radius: 10px; overflow: hidden;">
+                <div style="display: flex; justify-content: space-between; padding: 10px 15px; background: rgba(0,0,0,0.3); color: var(--accent-color); font-size: 0.75rem; border-bottom: 2px solid var(--border-color);">
+                    <span style="flex: 2;">Activity</span>
+                    <span style="flex: 1; text-align: right;">ID</span>
+                    <span style="flex: 1; text-align: right;">Weight</span>
+                    <span style="flex: 1; text-align: right;">Action</span>
+                </div>
+                <div id="mon-process-list" style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 5px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-fractal" style="width: 500px; height: 600px;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Fractal Generator</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-fractal">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="padding: 0; background: #0a0f0d; display: flex; flex-direction: column;">
+            <div style="flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                <canvas id="fractal-canvas" width="500" height="400"></canvas>
+            </div>
+            <div style="padding: 15px; border-top: 2px solid var(--border-color); background: var(--window-bg); display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; color: var(--text-color); font-size: 0.75rem;">
+                    <span>Complexity</span>
+                    <span id="fractal-depth-val" style="font-family: var(--font-mono);">7</span>
+                </div>
+                <input type="range" id="fractal-depth" min="1" max="10" value="7" style="width: 100%; accent-color: var(--accent-color);">
+                <div style="display: flex; justify-content: space-between; color: var(--text-color); font-size: 0.75rem; margin-top: 5px;">
+                    <span>Branch Angle for Fun </span>
+                    <span id="fractal-angle-val" style="font-family: var(--font-mono);">0.75</span>
+                </div>
+                <input type="range" id="fractal-angle" min="0.1" max="1.5" step="0.05" value="0.75" style="width: 100%;">
+            </div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-sonic" style="width: 400px; height: auto;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Ambient Noise</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-sonic">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="display: flex; flex-direction: column; gap: 20px; align-items: center; text-align: center;">
+            <div class="status-box" style="width: 100%; padding: 30px 15px;">
+                <div id="sonic-visual-pulse" style="width: 50px; height: 50px; background: var(--accent-color); border-radius: 50%; margin: 0 auto; transition: transform 0.1s; box-shadow: 0 0 20px var(--accent-color);"></div>
+            </div>
+            <button class="os-btn interactable" id="btn-sonic-toggle" style="width: 100%; font-size: 0.8rem;">Toggle Soundscape</button>
+            <div style="font-size: 0.7rem; opacity: 0.6;">Plays a relaxing background hum for studying.</div>
+        </div>
+    </div>
+
+    <div class="os-window" id="app-prana" style="width: 450px; height: 500px;">
+        <div class="window-titlebar window-drag-handle interactable">
+            <span>Breathing Guide (will teach how to breathe )</span>
+            <div class="window-controls">
+                <button class="window-btn min interactable" data-action="min-window">-</button>
+                <button class="window-btn close interactable" data-action="close-window" data-target="app-prana">X</button>
+            </div>
+        </div>
+        <div class="window-content" style="background: var(--bg-color); display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;">
+            <div id="prana-orb" style="width: 100px; height: 100px; background: var(--accent-color); border-radius: 50%; opacity: 0.5; transition: all 1s ease-in-out; box-shadow: 0 0 40px var(--accent-color);"></div>
+            <div id="prana-text" style="position: absolute; top: 75%; font-size: 1.2rem; letter-spacing: 4px; color: var(--text-color); font-weight: normal; text-transform: uppercase;">Ready</div>
+            <button class="os-btn interactable" id="btn-prana-start" style="position: absolute; bottom: 20px; font-size: 0.75rem;">Start Breathing Routine</button>
+        </div>
+    </div>
+</div> 
+
+<script src="script.js"></script>
+</body>
+</html>
